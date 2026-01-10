@@ -31,7 +31,9 @@ class AuthProvider with ChangeNotifier {
 
     try {
       final data = await _service.loginXtream(url, user, pass);
-      if (data['auth'] == 1) {
+      print("vamos ver: " + data.toString() );
+      print("vamos ver: " + data['user_info']['auth'].toString() );
+      if (data['user_info']['auth'] == 1) {
         final expiry = data['user_info']['exp_date'] != null 
             ? DateTime.fromMillisecondsSinceEpoch(int.parse(data['user_info']['exp_date']) * 1000)
             : null;
@@ -56,6 +58,7 @@ class AuthProvider with ChangeNotifier {
       notifyListeners();
       return false;
     } catch (e) {
+      print(e);
       _isLoading = false;
       notifyListeners();
       return false;
