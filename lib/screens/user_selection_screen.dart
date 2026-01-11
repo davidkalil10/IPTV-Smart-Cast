@@ -32,30 +32,31 @@ class UserSelectionScreen extends StatelessWidget {
                     'IPTV SMART CAST',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 32,
+                      fontSize: 24, // Reduced from 32
                       fontWeight: FontWeight.bold,
                       letterSpacing: 2,
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 6), // Reduced from 10
                   const Text(
                     'LISTAR USUÁRIOS',
                     style: TextStyle(
                       color: Colors.white70,
-                      fontSize: 18,
+                      fontSize: 16, // Reduced from 18
                       letterSpacing: 1.5,
                     ),
                   ),
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 20), // Reduced from 40
                   Expanded(
                     child: GridView.builder(
                       shrinkWrap: true,
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount:
-                                2, // 2 columns for better visuals on landscape
-                            childAspectRatio: 2.5,
+                          const SliverGridDelegateWithMaxCrossAxisExtent(
+                            maxCrossAxisExtent:
+                                400, // 1 col on phone, 2 on tablet
+                            mainAxisExtent:
+                                110, // Fixed height for consistent look
                             crossAxisSpacing: 16,
                             mainAxisSpacing: 16,
                           ),
@@ -66,11 +67,11 @@ class UserSelectionScreen extends StatelessWidget {
                       },
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 10), // Reduced from 20
                   Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 40,
-                      vertical: 20,
+                      vertical: 10, // Reduced from 20
                     ),
                     child: SizedBox(
                       width: 250,
@@ -94,6 +95,7 @@ class UserSelectionScreen extends StatelessWidget {
                         icon: const Icon(Icons.add),
                         label: const Text(
                           'ADICIONAR NOVO USUÁRIO',
+                          textAlign: TextAlign.center,
                           style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ),

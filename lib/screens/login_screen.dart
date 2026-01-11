@@ -24,177 +24,199 @@ class _LoginScreenState extends State<LoginScreen> {
     // Navigation is handled manually in _handleLogin
 
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF4A148C),
-              Color(0xFFFF4081),
-            ], // Purple to Pink/Orangeish
-            stops: [0.3, 0.9],
-          ),
-        ),
-        child: Row(
-          children: [
-            // Left Side - Logo/Branding
-            Expanded(
-              flex: 4,
-              child: Container(
-                color: Colors.transparent, // Or a slight overlay
-                child: Center(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(vertical: 20),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.tv, size: 80, color: Colors.white),
-                        const SizedBox(height: 20),
-                        const Text(
-                          'IPTV',
-                          style: TextStyle(
-                            fontSize: 40,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            letterSpacing: 2,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isSmallScreen = constraints.maxHeight < 500;
+
+          // Compact visual settings
+          final double verticalSpacing = isSmallScreen ? 10 : 16;
+          final double headerSpacing = isSmallScreen ? 10 : 30;
+          final double buttonSpacing = isSmallScreen ? 20 : 40;
+          final double titleSize = isSmallScreen ? 20 : 24;
+          final EdgeInsets formPadding = isSmallScreen
+              ? const EdgeInsets.symmetric(horizontal: 20)
+              : const EdgeInsets.symmetric(horizontal: 60);
+
+          return Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF4A148C), Color(0xFFFF4081)],
+                stops: [0.3, 0.9],
+              ),
+            ),
+            child: Row(
+              children: [
+                // Left Side - Logo/Branding (Hide on very small screens if needed, or adjust flex)
+                // Keeping it visible but maybe smaller flex if needed.
+                if (!isSmallScreen || constraints.maxWidth > 600)
+                  Expanded(
+                    flex: 4,
+                    child: Container(
+                      color: Colors.transparent,
+                      child: Center(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.symmetric(vertical: 20),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.tv,
+                                size: isSmallScreen ? 60 : 80,
+                                color: Colors.white,
+                              ),
+                              const SizedBox(height: 20),
+                              Text(
+                                'IPTV',
+                                style: TextStyle(
+                                  fontSize: isSmallScreen ? 30 : 40,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                  letterSpacing: 2,
+                                ),
+                              ),
+                              Text(
+                                'SMART CAST',
+                                style: TextStyle(
+                                  fontSize: isSmallScreen ? 18 : 24,
+                                  color: Colors.white70,
+                                  letterSpacing: 4,
+                                ),
+                              ),
+                              SizedBox(height: isSmallScreen ? 20 : 40),
+                              Consumer<AuthProvider>(
+                                builder: (context, auth, _) {
+                                  if (auth.users.isNotEmpty) {
+                                    return ElevatedButton.icon(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.white,
+                                        foregroundColor: Colors.black,
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: isSmallScreen ? 16 : 24,
+                                          vertical: isSmallScreen ? 12 : 16,
+                                        ),
+                                      ),
+                                      onPressed: () {
+                                        Navigator.pushReplacement(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) =>
+                                                const UserSelectionScreen(),
+                                          ),
+                                        );
+                                      },
+                                      icon: const Icon(Icons.people),
+                                      label: const Text('LISTAR USUÁRIOS'),
+                                    );
+                                  }
+                                  return const SizedBox.shrink();
+                                },
+                              ),
+                            ],
                           ),
                         ),
-                        const Text(
-                          'SMART CAST',
-                          style: TextStyle(
-                            fontSize: 24,
-                            color: Colors.white70,
-                            letterSpacing: 4,
-                          ),
-                        ),
-                        const SizedBox(height: 40),
-                        // If users exist, show button to List Users
-                        Consumer<AuthProvider>(
-                          builder: (context, auth, _) {
-                            if (auth.users.isNotEmpty) {
-                              return ElevatedButton.icon(
+                      ),
+                    ),
+                  ),
+
+                // Right Side - Login Form
+                Expanded(
+                  flex: 5,
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                        colors: [Colors.transparent, Colors.black12],
+                      ),
+                    ),
+                    padding: formPadding,
+                    child: Center(
+                      child: SingleChildScrollView(
+                        // Keeps scrolling if really needed
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              'Insira seus detalhes de login',
+                              style: TextStyle(
+                                fontSize: titleSize,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            SizedBox(height: headerSpacing),
+
+                            _buildTextField(
+                              controller: _nameController,
+                              hint: 'Nome qualquer',
+                              isDense: isSmallScreen,
+                            ),
+                            SizedBox(height: verticalSpacing),
+
+                            _buildTextField(
+                              controller: _userController,
+                              hint: 'Nome de usuário',
+                              isDense: isSmallScreen,
+                            ),
+                            SizedBox(height: verticalSpacing),
+
+                            _buildTextField(
+                              controller: _passController,
+                              hint: 'Senha',
+                              isPassword: true,
+                              isPasswordVisible: _isPasswordVisible,
+                              onVisibilityChanged: () {
+                                setState(
+                                  () =>
+                                      _isPasswordVisible = !_isPasswordVisible,
+                                );
+                              },
+                              isDense: isSmallScreen,
+                            ),
+                            SizedBox(height: verticalSpacing),
+
+                            _buildTextField(
+                              controller: _urlController,
+                              hint: 'http://url_aqui.com:porta',
+                              isDense: isSmallScreen,
+                            ),
+
+                            SizedBox(height: buttonSpacing),
+
+                            SizedBox(
+                              height: isSmallScreen ? 40 : 50,
+                              child: ElevatedButton(
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.white,
                                   foregroundColor: Colors.black,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 24,
-                                    vertical: 16,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(4),
                                   ),
                                 ),
-                                onPressed: () {
-                                  Navigator.pushReplacement(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          const UserSelectionScreen(),
-                                    ),
-                                  );
-                                },
-                                icon: const Icon(Icons.people),
-                                label: const Text('LISTAR USUÁRIOS'),
-                              );
-                            }
-                            return const SizedBox.shrink();
-                          },
+                                onPressed: _handleLogin,
+                                child: Text(
+                                  'ENTRAR',
+                                  style: TextStyle(
+                                    fontSize: isSmallScreen ? 14 : 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
-              ),
+              ],
             ),
-
-            // Right Side - Login Form
-            Expanded(
-              flex: 5,
-              child: Container(
-                decoration: const BoxDecoration(
-                  // Optional: Frosted glass or semi-transparent background for form area
-                  gradient: LinearGradient(
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
-                    colors: [Colors.transparent, Colors.black12],
-                  ),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 60),
-                child: Center(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const Text(
-                          'Insira seus detalhes de login',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 30),
-
-                        _buildTextField(
-                          controller: _nameController,
-                          hint: 'Nome qualquer',
-                        ),
-                        const SizedBox(height: 16),
-
-                        _buildTextField(
-                          controller: _userController,
-                          hint: 'Nome de usuário',
-                        ),
-                        const SizedBox(height: 16),
-
-                        _buildTextField(
-                          controller: _passController,
-                          hint: 'Senha',
-                          isPassword: true,
-                          isPasswordVisible: _isPasswordVisible,
-                          onVisibilityChanged: () {
-                            setState(
-                              () => _isPasswordVisible = !_isPasswordVisible,
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 16),
-
-                        _buildTextField(
-                          controller: _urlController,
-                          hint: 'http://url_aqui.com:porta',
-                        ),
-
-                        const SizedBox(height: 40),
-
-                        SizedBox(
-                          height: 50,
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              foregroundColor: Colors.black,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                            ),
-                            onPressed: _handleLogin,
-                            child: const Text(
-                              'ENTRAR',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -205,6 +227,7 @@ class _LoginScreenState extends State<LoginScreen> {
     bool isPassword = false,
     bool isPasswordVisible = false,
     VoidCallback? onVisibilityChanged,
+    bool isDense = false,
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -220,9 +243,10 @@ class _LoginScreenState extends State<LoginScreen> {
           hintText: hint,
           hintStyle: const TextStyle(color: Colors.white70),
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(
+          isDense: isDense,
+          contentPadding: EdgeInsets.symmetric(
             horizontal: 16,
-            vertical: 14,
+            vertical: isDense ? 8 : 14,
           ),
           suffixIcon: isPassword
               ? IconButton(

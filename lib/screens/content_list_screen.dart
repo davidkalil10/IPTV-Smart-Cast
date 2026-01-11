@@ -88,7 +88,7 @@ class _ContentListScreenState extends State<ContentListScreen> {
         );
       }
 
-      // Print Category Analysis Table (One Block for Excel)
+      /*  // Print Category Analysis Table (One Block for Excel)
       Map<String, String> selectedMap = {};
       if (widget.type == ContentType.live) {
         selectedMap = provider.liveCategoryMap;
@@ -114,7 +114,7 @@ class _ContentListScreenState extends State<ContentListScreen> {
       buffer.writeln('----------------------------------------\n');
 
       // Print as one large string
-      debugPrint(buffer.toString());
+      debugPrint(buffer.toString()); */
 
       // Load Playback Service
       PlaybackService().init().then((_) {
@@ -217,6 +217,7 @@ class _ContentListScreenState extends State<ContentListScreen> {
         return StatefulBuilder(
           builder: (context, setState) {
             return AlertDialog(
+              scrollable: true,
               backgroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),

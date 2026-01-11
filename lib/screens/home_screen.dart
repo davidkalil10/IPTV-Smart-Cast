@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
+
 import '../providers/auth_provider.dart';
 import '../providers/channel_provider.dart';
 import 'settings_screen.dart';
@@ -224,7 +224,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Row(
                 children: [
                   Text(
-                    'Expiração: ${user.expiryDate != null ? DateFormat('MMMM dd, yyyy').format(user.expiryDate!) : 'Ilimitado'}',
+                    'Expiração: ${user.expiryDate != null ? _formatExpiryDate(user.expiryDate!) : 'Ilimitado'}',
                     style: const TextStyle(color: Colors.white70),
                   ),
                   const Spacer(),
@@ -365,5 +365,34 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       },
     );
+  }
+
+  String _formatExpiryDate(DateTime date) {
+    // Ensure we show local time aligned with device timezone
+    final localDate = date.toLocal();
+
+    final months = [
+      '',
+      'Janeiro',
+      'Fevereiro',
+      'Março',
+      'Abril',
+      'Maio',
+      'Junho',
+      'Julho',
+      'Agosto',
+      'Setembro',
+      'Outubro',
+      'Novembro',
+      'Dezembro',
+    ];
+
+    final day = localDate.day.toString().padLeft(2, '0');
+    final month = months[localDate.month];
+    final year = localDate.year;
+    final hour = localDate.hour.toString().padLeft(2, '0');
+    final minute = localDate.minute.toString().padLeft(2, '0');
+
+    return '$day $month $year, $hour:$minute';
   }
 }
