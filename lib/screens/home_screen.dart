@@ -5,6 +5,7 @@ import '../providers/auth_provider.dart';
 import '../providers/channel_provider.dart';
 import 'settings_screen.dart';
 import 'login_screen.dart';
+import 'user_selection_screen.dart';
 import 'content_list_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -92,7 +93,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Navigator.pushReplacement(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const LoginScreen(),
+                          builder: (context) => const UserSelectionScreen(),
                         ),
                       );
                     },

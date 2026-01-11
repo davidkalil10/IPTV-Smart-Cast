@@ -13,6 +13,8 @@ class AuthProvider with ChangeNotifier {
   List<UserProfile> get users => _users;
   UserProfile? get currentUser => _currentUser;
   bool get isLoading => _isLoading;
+  bool _isInitialized = false;
+  bool get isInitialized => _isInitialized;
 
   AuthProvider() {
     loadUsers();
@@ -37,6 +39,7 @@ class AuthProvider with ChangeNotifier {
       }
     }
 
+    _isInitialized = true;
     notifyListeners();
   }
 

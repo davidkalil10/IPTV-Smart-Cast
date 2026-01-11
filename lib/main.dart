@@ -5,6 +5,7 @@ import 'providers/auth_provider.dart';
 import 'providers/channel_provider.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/user_selection_screen.dart';
 
 import 'package:media_kit/media_kit.dart';
 
@@ -49,9 +50,25 @@ class IptvSmartCastApp extends StatelessWidget {
       ),
       home: Consumer<AuthProvider>(
         builder: (context, auth, _) {
+          // Show splash/loading while AuthProvider initializes
+          if (!auth.isInitialized) {
+            return const Scaffold(
+              backgroundColor: Color(0xFF121212),
+              body: Center(
+                child: CircularProgressIndicator(color: Color(0xFF00BFA5)),
+              ),
+            );
+          }
+
+          // Once Initialized:
           if (auth.currentUser != null) {
             return const HomeScreen();
           }
+
+          if (auth.users.isNotEmpty) {
+            return const UserSelectionScreen();
+          }
+
           return const LoginScreen();
         },
       ),
