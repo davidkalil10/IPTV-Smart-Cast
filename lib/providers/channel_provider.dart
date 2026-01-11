@@ -27,7 +27,11 @@ class ChannelProvider with ChangeNotifier {
   DateTime? get lastMovieUpdate => _lastMovieUpdate;
   DateTime? get lastSeriesUpdate => _lastSeriesUpdate;
 
-  Map<String, String> _categoryMap = {};
+  Map<String, String> _liveCategoryMap = {};
+  Map<String, String> _movieCategoryMap = {};
+  Map<String, String> _seriesCategoryMap = {};
+  // Temporary map used for mapping logic
+  Map<String, String> _currentCategoryMap = {};
   Set<String> _favoriteIds = {};
 
   List<Channel> get channels => _channels;
@@ -37,6 +41,9 @@ class ChannelProvider with ChangeNotifier {
   String? get savedUser => _savedUser;
   String? get savedPass => _savedPass;
   bool get isXtream => _isXtream;
+  Map<String, String> get liveCategoryMap => _liveCategoryMap;
+  Map<String, String> get movieCategoryMap => _movieCategoryMap;
+  Map<String, String> get seriesCategoryMap => _seriesCategoryMap;
 
   final IptvService _service = IptvService();
 
@@ -98,6 +105,7 @@ class ChannelProvider with ChangeNotifier {
     // If not forced and we have cache, use it (assumes caller checked staleness if they cared)
     if (!forceRefresh && _cachedLive.isNotEmpty) {
       _channels = _cachedLive;
+      _currentCategoryMap = _liveCategoryMap;
       notifyListeners();
       return;
     }
@@ -113,7 +121,8 @@ class ChannelProvider with ChangeNotifier {
       if (authData['user_info']['auth'] == 1) {
         print('✅ Autenticação bem-sucedida. Buscando categorias...');
         final categories = await _service.fetchLiveCategories(url, user, pass);
-        _updateCategoryMap(categories);
+        _liveCategoryMap = _parseCategories(categories);
+        _currentCategoryMap = _liveCategoryMap;
 
         final streams = await _service.fetchLiveStreams(url, user, pass);
         _cachedLive = _mapChannelsWithCategoriesAndFavorites(streams);
@@ -143,6 +152,7 @@ class ChannelProvider with ChangeNotifier {
   }) async {
     if (!forceRefresh && _cachedMovies.isNotEmpty) {
       _channels = _cachedMovies;
+      _currentCategoryMap = _movieCategoryMap;
       notifyListeners();
       return;
     }
@@ -158,7 +168,8 @@ class ChannelProvider with ChangeNotifier {
       if (authData['user_info']['auth'] == 1) {
         print('✅ Autenticação bem-sucedida. Buscando categorias de filmes...');
         final categories = await _service.fetchVodCategories(url, user, pass);
-        _updateCategoryMap(categories);
+        _movieCategoryMap = _parseCategories(categories);
+        _currentCategoryMap = _movieCategoryMap;
 
         final streams = await _service.fetchVodStreams(url, user, pass);
         _cachedMovies = _mapChannelsWithCategoriesAndFavorites(streams);
@@ -188,6 +199,7 @@ class ChannelProvider with ChangeNotifier {
   }) async {
     if (!forceRefresh && _cachedSeries.isNotEmpty) {
       _channels = _cachedSeries;
+      _currentCategoryMap = _seriesCategoryMap;
       notifyListeners();
       return;
     }
@@ -207,7 +219,8 @@ class ChannelProvider with ChangeNotifier {
           user,
           pass,
         );
-        _updateCategoryMap(categories);
+        _seriesCategoryMap = _parseCategories(categories);
+        _currentCategoryMap = _seriesCategoryMap;
 
         final streams = await _service.fetchSeries(url, user, pass);
         _cachedSeries = _mapChannelsWithCategoriesAndFavorites(streams);
@@ -284,20 +297,21 @@ class ChannelProvider with ChangeNotifier {
     }
   }
 
-  void _updateCategoryMap(List<Map<String, dynamic>> categories) {
-    _categoryMap.clear();
+  Map<String, String> _parseCategories(List<Map<String, dynamic>> categories) {
+    final Map<String, String> map = {};
     for (var cat in categories) {
       final id = cat['category_id']?.toString();
       final name = cat['category_name']?.toString();
       if (id != null && name != null) {
-        _categoryMap[id] = name;
+        map[id] = name;
       }
     }
+    return map;
   }
 
   List<Channel> _mapChannelsWithCategoriesAndFavorites(List<Channel> channels) {
     return channels.map((c) {
-      final categoryName = _categoryMap[c.category] ?? c.category;
+      final categoryName = _currentCategoryMap[c.category] ?? c.category;
       return Channel(
         id: c.id,
         name: c.name,

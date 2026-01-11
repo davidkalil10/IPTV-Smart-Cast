@@ -19,7 +19,10 @@ class VideoControlsOverlay extends StatefulWidget {
     required this.onShowEpisodes,
     required this.onResize,
     required this.onSubtitleSizeChanged,
+    required this.onRestart,
   });
+
+  final VoidCallback onRestart;
 
   @override
   State<VideoControlsOverlay> createState() => _VideoControlsOverlayState();
@@ -561,6 +564,15 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
                         icon: const Icon(Icons.cast, color: Colors.white),
                         onPressed: () {},
                       ),
+                      if (widget.channel.type != 'live')
+                        IconButton(
+                          icon: const Icon(Icons.replay, color: Colors.white),
+                          tooltip: 'Recomeçar',
+                          onPressed: () {
+                            _resetHideTimer();
+                            widget.onRestart();
+                          },
+                        ),
                       IconButton(
                         icon: const Icon(Icons.lock_open, color: Colors.white),
                         onPressed: () => setState(() => _isLocked = true),

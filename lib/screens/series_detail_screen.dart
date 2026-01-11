@@ -6,6 +6,7 @@ import '../models/channel.dart';
 import '../providers/channel_provider.dart';
 import '../services/iptv_service.dart';
 import 'player_screen.dart';
+import '../services/playback_service.dart';
 
 class SeriesDetailScreen extends StatefulWidget {
   final Channel channel;
@@ -23,6 +24,7 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
       {}; // Map of Season Number -> List of Episodes
   List<String> _seasons = [];
   String? _selectedSeason;
+  String? _resumeEpisodeId;
 
   @override
   void initState() {
@@ -44,9 +46,14 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
         provider.savedPass!,
       );
 
+      final lastEp = await PlaybackService().getLastEpisodeId(
+        widget.channel.id,
+      );
+
       if (mounted) {
         setState(() {
           _info = data['info'] ?? {};
+          _resumeEpisodeId = lastEp;
 
           final episodesData = data['episodes'];
           if (episodesData is Map<String, dynamic>) {
@@ -75,6 +82,18 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
     } else {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Map<String, dynamic>? _findEpisodeById(String? id) {
+    if (id == null) return null;
+    for (var season in _episodesMap.values) {
+      if (season is List) {
+        for (var ep in season) {
+          if (ep['id'].toString() == id) return ep as Map<String, dynamic>;
+        }
+      }
+    }
+    return null;
   }
 
   void _playEpisode(Map<String, dynamic> episode) {
@@ -374,6 +393,86 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                                             // Controls Row (Play S1E1 | Seasons Dropdown) - Compact
                                             Row(
                                               children: [
+                                                // Resume Button
+                                                if (_resumeEpisodeId !=
+                                                    null) ...[
+                                                  Builder(
+                                                    builder: (context) {
+                                                      final resumeEp =
+                                                          _findEpisodeById(
+                                                            _resumeEpisodeId,
+                                                          );
+                                                      if (resumeEp == null)
+                                                        return const SizedBox.shrink();
+                                                      // Optional: Check progress
+                                                      final progress =
+                                                          PlaybackService()
+                                                              .getProgress(
+                                                                _resumeEpisodeId!,
+                                                              );
+                                                      if (progress < 10)
+                                                        return const SizedBox.shrink();
+
+                                                      return Padding(
+                                                        padding:
+                                                            const EdgeInsets.only(
+                                                              right: 10,
+                                                            ),
+                                                        child: ElevatedButton.icon(
+                                                          onPressed: () =>
+                                                              _playEpisode(
+                                                                resumeEp,
+                                                              ),
+                                                          icon: const Icon(
+                                                            Icons.history,
+                                                            size: 16,
+                                                          ),
+                                                          label: Text(
+                                                            'RETOMAR S${resumeEp['season'] ?? '?'}E${resumeEp['episode_num'] ?? '?'}',
+                                                            style:
+                                                                const TextStyle(
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .bold,
+                                                                  fontSize: 13,
+                                                                ),
+                                                          ),
+                                                          style: ElevatedButton.styleFrom(
+                                                            backgroundColor:
+                                                                const Color(
+                                                                  0xFF00838F,
+                                                                ),
+                                                            foregroundColor:
+                                                                Colors.white,
+                                                            padding:
+                                                                const EdgeInsets.symmetric(
+                                                                  horizontal:
+                                                                      16,
+                                                                  vertical: 0,
+                                                                ),
+                                                            shape: RoundedRectangleBorder(
+                                                              borderRadius:
+                                                                  BorderRadius.circular(
+                                                                    5,
+                                                                  ),
+                                                            ),
+                                                            side:
+                                                                const BorderSide(
+                                                                  color: Colors
+                                                                      .white24,
+                                                                ),
+                                                            minimumSize:
+                                                                const Size(
+                                                                  140,
+                                                                  45,
+                                                                ),
+                                                          ),
+                                                        ),
+                                                      );
+                                                    },
+                                                  ),
+                                                ],
+
                                                 if (currentEpisodes.isNotEmpty)
                                                   ElevatedButton(
                                                     onPressed: () =>

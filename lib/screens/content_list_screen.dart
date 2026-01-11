@@ -59,34 +59,62 @@ class _ContentListScreenState extends State<ContentListScreen> {
     super.dispose();
   }
 
-  void _loadContent() {
+  Future<void> _loadContent() async {
     final auth = context.read<AuthProvider>();
     final provider = context.read<ChannelProvider>();
     final user = auth.currentUser;
 
     if (user != null) {
       if (widget.type == ContentType.live) {
-        provider.loadXtream(
+        await provider.loadXtream(
           user.url,
           user.username,
           user.password,
           forceRefresh: widget.forceRefresh,
         );
       } else if (widget.type == ContentType.movie) {
-        provider.loadVod(
+        await provider.loadVod(
           user.url,
           user.username,
           user.password,
           forceRefresh: widget.forceRefresh,
         );
       } else if (widget.type == ContentType.series) {
-        provider.loadSeries(
+        await provider.loadSeries(
           user.url,
           user.username,
           user.password,
           forceRefresh: widget.forceRefresh,
         );
       }
+
+      // Print Category Analysis Table (One Block for Excel)
+      Map<String, String> selectedMap = {};
+      if (widget.type == ContentType.live) {
+        selectedMap = provider.liveCategoryMap;
+      } else if (widget.type == ContentType.movie) {
+        selectedMap = provider.movieCategoryMap;
+      } else if (widget.type == ContentType.series) {
+        selectedMap = provider.seriesCategoryMap;
+      }
+
+      final buffer = StringBuffer();
+      buffer.writeln(
+        '\n--- CATEGORY ANALYSIS TABLE (${widget.type.toString()}) ---',
+      );
+      buffer.writeln('ID\t|\tNAME');
+      buffer.writeln('----------------------------------------');
+
+      final sortedEntries = selectedMap.entries.toList()
+        ..sort((a, b) => a.value.compareTo(b.value));
+
+      for (var entry in sortedEntries) {
+        buffer.writeln('${entry.key}\t|\t${entry.value}');
+      }
+      buffer.writeln('----------------------------------------\n');
+
+      // Print as one large string
+      debugPrint(buffer.toString());
 
       // Load Playback Service
       PlaybackService().init().then((_) {
@@ -101,13 +129,43 @@ class _ContentListScreenState extends State<ContentListScreen> {
 
   List<String> _getCategories(List<Channel> channels) {
     if (channels.isEmpty) return ['TODOS', 'FAVORITOS'];
-    final categories = channels.map((c) => c.category).toSet().toList();
-    categories.sort((a, b) => a.compareTo(b));
+
+    // Get unique category names present in the current channel list
+    final presentCategories = channels.map((c) => c.category).toSet();
+
+    // Get the Ordered List from Provider (Server Order)
+    final provider = context.read<ChannelProvider>();
+    Map<String, String> sourceMap = {};
+    if (widget.type == ContentType.live) {
+      sourceMap = provider.liveCategoryMap;
+    } else if (widget.type == ContentType.movie) {
+      sourceMap = provider.movieCategoryMap;
+    } else if (widget.type == ContentType.series) {
+      sourceMap = provider.seriesCategoryMap;
+    }
+
+    // Filter the ordered values by what is actually present
+    final orderedCategories = sourceMap.values
+        .where((name) => presentCategories.contains(name))
+        .toList();
+
+    // If there are categories in 'channels' not in the map (fallback), add them at the end
+    final unmapped = presentCategories
+        .where((name) => !orderedCategories.contains(name))
+        .toList();
+    // Sort unmapped alphabetically just to be tidy
+    unmapped.sort();
 
     // Check if we have items to resume
     final hasResumeItems = channels.any((c) => _resumeIds.contains(c.id));
 
-    return ['TODOS', 'FAVORITOS', if (hasResumeItems) 'RETOMAR', ...categories];
+    return [
+      'TODOS',
+      'FAVORITOS',
+      if (hasResumeItems) 'RETOMAR',
+      ...orderedCategories,
+      ...unmapped,
+    ];
   }
 
   List<Channel> _getFilteredChannels(List<Channel> channels) {

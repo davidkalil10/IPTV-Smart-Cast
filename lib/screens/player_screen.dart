@@ -108,6 +108,18 @@ class _PlayerScreenState extends State<PlayerScreen> {
         // Resume
         await _player.play();
         debugPrint("PLAYER: Play called.");
+
+        // Verification / Retry logic
+        // Sometimes stream starts from 0 anyway. Check after a delay.
+        await Future.delayed(const Duration(seconds: 2));
+        if (mounted &&
+            _player.state.position.inSeconds <
+                (widget.startPosition!.inSeconds - 10)) {
+          debugPrint(
+            "PLAYER: Position reset detected. Reseeking to ${widget.startPosition}...",
+          );
+          await _player.seek(widget.startPosition!);
+        }
       } catch (e) {
         debugPrint("PLAYER: Seek error: $e");
         await _player.play();
@@ -120,12 +132,29 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _startProgressTracking();
   }
 
+  bool _isUserRestart = false;
+
   void _startProgressTracking() {
     // Save every 5 seconds
     _progressTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
       if (!mounted) return;
       final position = _player.state.position.inSeconds;
       final duration = _player.state.duration.inSeconds;
+
+      // PROTECT RESUME:
+      // If we intended to resume (>10s) but current position is near 0 (<5s),
+      // and the user didn't manually restart, DO NOT SAVE.
+      // This prevents the "reset bug" from wiping out progress.
+      if (widget.startPosition != null &&
+          widget.startPosition!.inSeconds > 10 &&
+          position < 5 &&
+          !_isUserRestart) {
+        debugPrint(
+          "PLAYER: Saving SKIPPED causing potential reset bug from ${widget.startPosition} to 0.",
+        );
+        return;
+      }
+
       if (duration > 0) {
         PlaybackService().saveProgress(
           widget.channel.id,
@@ -149,7 +178,15 @@ class _PlayerScreenState extends State<PlayerScreen> {
     // One last save on exit
     final position = _player.state.position.inSeconds;
     final duration = _player.state.duration.inSeconds;
-    if (duration > 0) {
+    // PROTECT RESUME ON EXIT:
+    // If we intended to resume (>10s) but current position is near 0 (<5s),
+    // and the user didn't manually restart, DO NOT SAVE.
+    if (widget.startPosition != null &&
+        widget.startPosition!.inSeconds > 10 &&
+        position < 5 &&
+        !_isUserRestart) {
+      debugPrint("PLAYER: Dispose Save SKIPPED to prevent reset bug.");
+    } else if (duration > 0) {
       PlaybackService().saveProgress(
         widget.channel.id,
         position,
@@ -493,6 +530,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
             },
             onSubtitleSizeChanged: (size) {
               setState(() => _subtitleFontSize = size);
+            },
+            onRestart: () {
+              // User manually restarted. Allow saving "0" progress.
+              _isUserRestart = true;
+              _player.seek(Duration.zero);
             },
           ),
         ],
