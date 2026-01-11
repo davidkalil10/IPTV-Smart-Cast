@@ -11,7 +11,7 @@ class ChannelProvider with ChangeNotifier {
   String? _savedUrl;
   String? _savedUser;
   String? _savedPass;
-  bool _isXtream = false;
+  bool _isXtream = true; // Always true now
 
   // Cache separate lists
   List<Channel> _cachedLive = [];
@@ -53,11 +53,9 @@ class ChannelProvider with ChangeNotifier {
     _favoriteIds = (prefs.getStringList('favorites') ?? []).toSet();
 
     if (_savedUrl != null) {
-      if (_isXtream && _savedUser != null && _savedPass != null) {
+      if (_savedUser != null && _savedPass != null) {
         // Carrega streams ao vivo por padrão
         loadXtream(_savedUrl!, _savedUser!, _savedPass!);
-      } else {
-        loadM3u(_savedUrl!);
       }
     }
   }
@@ -89,32 +87,6 @@ class ChannelProvider with ChangeNotifier {
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList('favorites', _favoriteIds.toList());
-  }
-
-  Future<void> loadM3u(String url) async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
-
-    try {
-      print('📡 Carregando M3U de: $url');
-      final fetchedChannels = await _service.fetchChannelsFromM3u(url);
-      _channels = _mapChannelsWithFavorites(fetchedChannels);
-      _savedUrl = url;
-      _isXtream = false;
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('iptv_url', url);
-      await prefs.setBool('is_xtream', false);
-      print(
-        '✅ M3U carregado com sucesso. Total de canais: ${_channels.length}',
-      );
-    } catch (e) {
-      print('❌ Erro ao carregar M3U: $e');
-      _error = 'Falha ao carregar lista M3U: $e';
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
   }
 
   Future<void> loadXtream(

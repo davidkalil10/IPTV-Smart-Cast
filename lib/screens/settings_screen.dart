@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../providers/channel_provider.dart';
+import 'dart:ui'; // For BackdropFilter
+import '../services/dns_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -10,132 +10,250 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  late TextEditingController _urlController;
-  late TextEditingController _userController;
-  late TextEditingController _passController;
-  bool _isXtreamMode = false;
+  DnsProviderType _currentProvider = DnsProviderType.system;
 
   @override
   void initState() {
     super.initState();
-    final provider = context.read<ChannelProvider>();
-    _urlController = TextEditingController(text: provider.savedUrl ?? '');
-    _userController = TextEditingController(text: provider.savedUser ?? '');
-    _passController = TextEditingController(text: provider.savedPass ?? '');
-    _isXtreamMode = provider.isXtream;
+    _loadCurrentProvider();
   }
 
-  @override
-  void dispose() {
-    _urlController.dispose();
-    _userController.dispose();
-    _passController.dispose();
-    super.dispose();
+  Future<void> _loadCurrentProvider() async {
+    await DnsService().init();
+    setState(() => _currentProvider = DnsService().currentProvider);
+  }
+
+  Future<void> _updateProvider(DnsProviderType provider) async {
+    setState(() => _currentProvider = provider);
+    await DnsService().setProvider(provider);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'DNS alterado para ${_getProviderName(provider)}',
+            style: const TextStyle(color: Colors.white),
+          ),
+          backgroundColor: const Color(0xFF00BFA5),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          margin: const EdgeInsets.all(16),
+          duration: const Duration(seconds: 1),
+        ),
+      );
+    }
+  }
+
+  String _getProviderName(DnsProviderType type) {
+    switch (type) {
+      case DnsProviderType.system:
+        return 'Padrão (Sistema)';
+      case DnsProviderType.cloudflare:
+        return 'Cloudflare (1.1.1.1)';
+      case DnsProviderType.google:
+        return 'Google (8.8.8.8)';
+      case DnsProviderType.quad9:
+        return 'Quad9 (9.9.9.9)';
+    }
+  }
+
+  String _getProviderDesc(DnsProviderType type) {
+    switch (type) {
+      case DnsProviderType.system:
+        return 'Usa a configuração padrão do dispositivo.';
+      case DnsProviderType.cloudflare:
+        return 'Rápido e privado.';
+      case DnsProviderType.google:
+        return 'Confiável e estável.';
+      case DnsProviderType.quad9:
+        return 'Focado em segurança.';
+    }
+  }
+
+  IconData _getProviderIcon(DnsProviderType type) {
+    switch (type) {
+      case DnsProviderType.system:
+        return Icons.settings_ethernet;
+      case DnsProviderType.cloudflare:
+        return Icons.cloud_queue;
+      case DnsProviderType.google:
+        return Icons.public;
+      case DnsProviderType.quad9:
+        return Icons.security;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Configurações da Lista')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Tipo de Conexão', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            Row(
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        title: const Text('Configurações de DNS'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: true,
+        flexibleSpace: ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(color: Colors.black.withOpacity(0.3)),
+          ),
+        ),
+      ),
+      body: Stack(
+        children: [
+          // Background Gradient
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFF141414), // Dark Grey
+                  Color(0xFF0F0F1A), // Darkish Blue
+                  Color(0xFF1E1E2C), // Slightly lighter
+                ],
+              ),
+            ),
+          ),
+          // Subtle Patterns
+          Positioned(
+            top: -100,
+            right: -100,
+            child: Container(
+              width: 300,
+              height: 300,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF00BFA5).withOpacity(0.05),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF00BFA5).withOpacity(0.1),
+                    blurRadius: 100,
+                    spreadRadius: 50,
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Content
+          SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(24, 100, 24, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: ChoiceChip(
-                    label: const Center(child: Text('M3U URL', style: TextStyle(fontSize: 16))),
-                    selected: !_isXtreamMode,
-                    onSelected: (val) => setState(() => _isXtreamMode = !val),
+                // Subtitle (Original Title removed, Description font increased)
+                Text(
+                  'Otimize sua conexão escolhendo um servidor DNS de alta performance.',
+                  style: TextStyle(
+                    fontSize: 18, // Increased from 14
+                    color: Colors.white.withOpacity(0.8),
+                    height: 1.5,
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ChoiceChip(
-                    label: const Center(child: Text('Xtream Codes', style: TextStyle(fontSize: 16))),
-                    selected: _isXtreamMode,
-                    onSelected: (val) => setState(() => _isXtreamMode = val),
-                  ),
-                ),
+                const SizedBox(height: 20),
+
+                // List of Cards
+                ...DnsProviderType.values.map((type) => _buildDnsCard(type)),
               ],
             ),
-            const SizedBox(height: 32),
-            TextField(
-              controller: _urlController,
-              style: const TextStyle(fontSize: 18),
-              decoration: InputDecoration(
-                labelText: _isXtreamMode ? 'URL do Servidor' : 'URL da Lista M3U',
-                border: const OutlineInputBorder(),
-                prefixIcon: const Icon(Icons.link),
-                hintText: _isXtreamMode ? 'http://servidor.com:8080' : 'https://exemplo.com/lista.m3u',
-              ),
-            ),
-            if (_isXtreamMode) ...[
-              const SizedBox(height: 16),
-              TextField(
-                controller: _userController,
-                style: const TextStyle(fontSize: 18),
-                decoration: const InputDecoration(
-                  labelText: 'Usuário',
-                  border: OutlineInputBorder(),
-                  prefixIcon: const Icon(Icons.person),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDnsCard(DnsProviderType type) {
+    final isSelected = _currentProvider == type;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: isSelected
+            ? const Color(0xFF00BFA5).withOpacity(0.1)
+            : Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isSelected
+              ? const Color(0xFF00BFA5).withOpacity(0.5)
+              : Colors.transparent,
+          width: 1.5,
+        ),
+        boxShadow: isSelected
+            ? [
+                BoxShadow(
+                  color: const Color(0xFF00BFA5).withOpacity(0.1),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
                 ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _passController,
-                style: const TextStyle(fontSize: 18),
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Senha',
-                  border: OutlineInputBorder(),
-                  prefixIcon: const Icon(Icons.lock),
+              ]
+            : [],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => _updateProvider(type),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? const Color(0xFF00BFA5).withOpacity(0.2)
+                        : Colors.white.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    _getProviderIcon(type),
+                    color: isSelected
+                        ? const Color(0xFF00BFA5)
+                        : Colors.white70,
+                    size: 24,
+                  ),
                 ),
-              ),
-            ],
-            const SizedBox(height: 40),
-            SizedBox(
-              width: double.infinity,
-              height: 55,
-              child: ElevatedButton(
-                onPressed: () {
-                  final provider = context.read<ChannelProvider>();
-                  if (_isXtreamMode) {
-                    if (_urlController.text.isNotEmpty && _userController.text.isNotEmpty && _passController.text.isNotEmpty) {
-                      provider.loadXtream(_urlController.text, _userController.text, _passController.text);
-                      Navigator.pop(context);
-                    }
-                  } else {
-                    if (_urlController.text.isNotEmpty) {
-                      provider.loadM3u(_urlController.text);
-                      Navigator.pop(context);
-                    }
-                  }
-                },
-                child: const Text('Salvar e Conectar', style: TextStyle(fontSize: 18)),
-              ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _getProviderName(type),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: isSelected
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _getProviderDesc(type),
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.5),
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (isSelected)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 12),
+                    child: Icon(
+                      Icons.check_circle,
+                      color: const Color(0xFF00BFA5),
+                      size: 24,
+                    ),
+                  ),
+              ],
             ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              height: 55,
-              child: OutlinedButton(
-                onPressed: () {
-                  context.read<ChannelProvider>().clearList();
-                  _urlController.clear();
-                  _userController.clear();
-                  _passController.clear();
-                  Navigator.pop(context);
-                },
-                style: OutlinedButton.styleFrom(foregroundColor: Colors.redAccent),
-                child: const Text('Limpar Tudo', style: TextStyle(fontSize: 18)),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

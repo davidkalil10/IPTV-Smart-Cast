@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import '../models/channel.dart';
+import 'dns_service.dart';
 
 // ⚠️ FUNÇÃO PARA IGNORAR VERIFICAÇÃO DE CERTIFICADO SSL
 HttpClient _createHttpClient() {
@@ -28,12 +29,23 @@ class IptvService {
     String cleanUrl = url.endsWith('/')
         ? url.substring(0, url.length - 1)
         : url;
+
+    // DNS Resolution
+    final uri = Uri.parse(cleanUrl);
+    final resolvedIp = await DnsService().resolve(uri.host);
+    final finalUrlStr = cleanUrl.replaceFirst(uri.host, resolvedIp);
     final fullUrl =
-        '$cleanUrl/player_api.php?username=$username&password=$password';
+        '$finalUrlStr/player_api.php?username=$username&password=$password';
 
     try {
       final httpClient = _createHttpClient();
       final request = await httpClient.getUrl(Uri.parse(fullUrl));
+
+      // Critical: Set Host header if we replaced the IP
+      if (resolvedIp != uri.host) {
+        request.headers.set('Host', uri.host);
+      }
+
       final response = await request.close();
 
       if (response.statusCode == 200) {
@@ -130,7 +142,20 @@ class IptvService {
 
     try {
       final httpClient = _createHttpClient();
-      final request = await httpClient.getUrl(Uri.parse(apiUrl));
+
+      // DNS Logic
+      Uri uri = Uri.parse(apiUrl);
+      final resolvedIp = await DnsService().resolve(uri.host);
+      String requestUrl = apiUrl;
+      if (resolvedIp != uri.host) {
+        requestUrl = apiUrl.replaceFirst(uri.host, resolvedIp);
+      }
+
+      final request = await httpClient.getUrl(Uri.parse(requestUrl));
+      if (resolvedIp != uri.host) {
+        request.headers.set('Host', uri.host);
+      }
+
       final response = await request.close();
 
       if (response.statusCode == 200) {
@@ -158,7 +183,20 @@ class IptvService {
 
     try {
       final httpClient = _createHttpClient();
-      final request = await httpClient.getUrl(Uri.parse(apiUrl));
+
+      // DNS Logic
+      Uri uri = Uri.parse(apiUrl);
+      final resolvedIp = await DnsService().resolve(uri.host);
+      String requestUrl = apiUrl;
+      if (resolvedIp != uri.host) {
+        requestUrl = apiUrl.replaceFirst(uri.host, resolvedIp);
+      }
+
+      final request = await httpClient.getUrl(Uri.parse(requestUrl));
+      if (resolvedIp != uri.host) {
+        request.headers.set('Host', uri.host);
+      }
+
       final response = await request.close();
 
       if (response.statusCode == 200) {
@@ -177,7 +215,22 @@ class IptvService {
   Future<List<Map<String, dynamic>>> _fetchCategories(String apiUrl) async {
     try {
       final httpClient = _createHttpClient();
-      final request = await httpClient.getUrl(Uri.parse(apiUrl));
+
+      // DNS Resolution Implementation for generic calls
+      Uri uri = Uri.parse(apiUrl);
+      final resolvedIp = await DnsService().resolve(uri.host);
+      String requestUrl = apiUrl;
+
+      if (resolvedIp != uri.host) {
+        requestUrl = apiUrl.replaceFirst(uri.host, resolvedIp);
+      }
+
+      final request = await httpClient.getUrl(Uri.parse(requestUrl));
+
+      if (resolvedIp != uri.host) {
+        request.headers.set('Host', uri.host);
+      }
+
       final response = await request.close();
 
       if (response.statusCode == 200) {
@@ -213,7 +266,22 @@ class IptvService {
   ) async {
     try {
       final httpClient = _createHttpClient();
-      final request = await httpClient.getUrl(Uri.parse(apiUrl));
+
+      // DNS Resolution Implementation for generic calls
+      Uri uri = Uri.parse(apiUrl);
+      final resolvedIp = await DnsService().resolve(uri.host);
+      String requestUrl = apiUrl;
+
+      if (resolvedIp != uri.host) {
+        requestUrl = apiUrl.replaceFirst(uri.host, resolvedIp);
+      }
+
+      final request = await httpClient.getUrl(Uri.parse(requestUrl));
+
+      if (resolvedIp != uri.host) {
+        request.headers.set('Host', uri.host);
+      }
+
       final response = await request.close();
 
       if (response.statusCode == 200) {
