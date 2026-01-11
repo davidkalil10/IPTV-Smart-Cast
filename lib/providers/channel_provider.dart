@@ -13,6 +13,9 @@ class ChannelProvider with ChangeNotifier {
   String? _savedPass;
   bool _isXtream = false;
 
+  Map<String, String> _categoryMap = {};
+  Set<String> _favoriteIds = {};
+
   List<Channel> get channels => _channels;
   bool get isLoading => _isLoading;
   String? get error => _error;
@@ -33,6 +36,7 @@ class ChannelProvider with ChangeNotifier {
     _savedUser = prefs.getString('iptv_user');
     _savedPass = prefs.getString('iptv_pass');
     _isXtream = prefs.getBool('is_xtream') ?? false;
+    _favoriteIds = (prefs.getStringList('favorites') ?? []).toSet();
 
     if (_savedUrl != null) {
       if (_isXtream && _savedUser != null && _savedPass != null) {
@@ -44,7 +48,35 @@ class ChannelProvider with ChangeNotifier {
     }
   }
 
-  /// Carrega lista M3U
+  Future<void> toggleFavorite(Channel channel) async {
+    if (_favoriteIds.contains(channel.id)) {
+      _favoriteIds.remove(channel.id);
+    } else {
+      _favoriteIds.add(channel.id);
+    }
+
+    _channels = _channels.map((c) {
+      if (c.id == channel.id) {
+        return Channel(
+          id: c.id,
+          name: c.name,
+          streamUrl: c.streamUrl,
+          logoUrl: c.logoUrl,
+          category: c.category,
+          isFavorite: _favoriteIds.contains(c.id),
+          rating: c.rating,
+          type: c.type,
+        );
+      }
+      return c;
+    }).toList();
+
+    notifyListeners();
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('favorites', _favoriteIds.toList());
+  }
+
   Future<void> loadM3u(String url) async {
     _isLoading = true;
     _error = null;
@@ -52,13 +84,16 @@ class ChannelProvider with ChangeNotifier {
 
     try {
       print('📡 Carregando M3U de: $url');
-      _channels = await _service.fetchChannelsFromM3u(url);
+      final fetchedChannels = await _service.fetchChannelsFromM3u(url);
+      _channels = _mapChannelsWithFavorites(fetchedChannels);
       _savedUrl = url;
       _isXtream = false;
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('iptv_url', url);
       await prefs.setBool('is_xtream', false);
-      print('✅ M3U carregado com sucesso. Total de canais: ${_channels.length}');
+      print(
+        '✅ M3U carregado com sucesso. Total de canais: ${_channels.length}',
+      );
     } catch (e) {
       print('❌ Erro ao carregar M3U: $e');
       _error = 'Falha ao carregar lista M3U: $e';
@@ -68,7 +103,6 @@ class ChannelProvider with ChangeNotifier {
     }
   }
 
-  /// Carrega streams ao vivo (TV)
   Future<void> loadXtream(String url, String user, String pass) async {
     _isLoading = true;
     _error = null;
@@ -77,27 +111,21 @@ class ChannelProvider with ChangeNotifier {
     try {
       print('📡 Carregando streams ao vivo de: $url');
       final authData = await _service.loginXtream(url, user, pass);
-      print('🔑 Dados de autenticação: $authData');
 
-      // ✅ CORREÇÃO: Acessar 'auth' dentro de 'user_info'
       if (authData['user_info']['auth'] == 1) {
-        print('✅ Autenticação bem-sucedida');
-        _channels = await _service.fetchLiveStreams(url, user, pass);
+        print('✅ Autenticação bem-sucedida. Buscando categorias...');
+        final categories = await _service.fetchLiveCategories(url, user, pass);
+        _updateCategoryMap(categories);
+
+        final streams = await _service.fetchLiveStreams(url, user, pass);
+        _channels = _mapChannelsWithCategoriesAndFavorites(streams);
+
         print('✅ Streams ao vivo carregados. Total: ${_channels.length}');
       } else {
         throw Exception('Falha na autenticação');
       }
 
-      _savedUrl = url;
-      _savedUser = user;
-      _savedPass = pass;
-      _isXtream = true;
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('iptv_url', url);
-      await prefs.setString('iptv_user', user);
-      await prefs.setString('iptv_pass', pass);
-      await prefs.setBool('is_xtream', true);
+      _saveCredentials(url, user, pass);
     } catch (e) {
       print('❌ Erro ao carregar streams ao vivo: $e');
       _error = 'Falha na autenticação Xtream Codes: $e';
@@ -107,7 +135,6 @@ class ChannelProvider with ChangeNotifier {
     }
   }
 
-  /// Carrega filmes (VOD)
   Future<void> loadVod(String url, String user, String pass) async {
     _isLoading = true;
     _error = null;
@@ -117,25 +144,20 @@ class ChannelProvider with ChangeNotifier {
       print('📡 Carregando filmes (VOD) de: $url');
       final authData = await _service.loginXtream(url, user, pass);
 
-      // ✅ CORREÇÃO: Acessar 'auth' dentro de 'user_info'
       if (authData['user_info']['auth'] == 1) {
-        print('✅ Autenticação bem-sucedida');
-        _channels = await _service.fetchVodStreams(url, user, pass);
+        print('✅ Autenticação bem-sucedida. Buscando categorias de filmes...');
+        final categories = await _service.fetchVodCategories(url, user, pass);
+        _updateCategoryMap(categories);
+
+        final streams = await _service.fetchVodStreams(url, user, pass);
+        _channels = _mapChannelsWithCategoriesAndFavorites(streams);
+
         print('✅ Filmes carregados. Total: ${_channels.length}');
       } else {
         throw Exception('Falha na autenticação');
       }
 
-      _savedUrl = url;
-      _savedUser = user;
-      _savedPass = pass;
-      _isXtream = true;
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('iptv_url', url);
-      await prefs.setString('iptv_user', user);
-      await prefs.setString('iptv_pass', pass);
-      await prefs.setBool('is_xtream', true);
+      _saveCredentials(url, user, pass);
     } catch (e) {
       print('❌ Erro ao carregar filmes: $e');
       _error = 'Falha ao carregar filmes: $e';
@@ -145,7 +167,6 @@ class ChannelProvider with ChangeNotifier {
     }
   }
 
-  /// Carrega séries
   Future<void> loadSeries(String url, String user, String pass) async {
     _isLoading = true;
     _error = null;
@@ -155,25 +176,24 @@ class ChannelProvider with ChangeNotifier {
       print('📡 Carregando séries de: $url');
       final authData = await _service.loginXtream(url, user, pass);
 
-      // ✅ CORREÇÃO: Acessar 'auth' dentro de 'user_info'
       if (authData['user_info']['auth'] == 1) {
-        print('✅ Autenticação bem-sucedida');
-        _channels = await _service.fetchSeries(url, user, pass);
+        print('✅ Autenticação bem-sucedida. Buscando categorias de séries...');
+        final categories = await _service.fetchSeriesCategories(
+          url,
+          user,
+          pass,
+        );
+        _updateCategoryMap(categories);
+
+        final streams = await _service.fetchSeries(url, user, pass);
+        _channels = _mapChannelsWithCategoriesAndFavorites(streams);
+
         print('✅ Séries carregadas. Total: ${_channels.length}');
       } else {
         throw Exception('Falha na autenticação');
       }
 
-      _savedUrl = url;
-      _savedUser = user;
-      _savedPass = pass;
-      _isXtream = true;
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('iptv_url', url);
-      await prefs.setString('iptv_user', user);
-      await prefs.setString('iptv_pass', pass);
-      await prefs.setBool('is_xtream', true);
+      _saveCredentials(url, user, pass);
     } catch (e) {
       print('❌ Erro ao carregar séries: $e');
       _error = 'Falha ao carregar séries: $e';
@@ -181,6 +201,61 @@ class ChannelProvider with ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  void _updateCategoryMap(List<Map<String, dynamic>> categories) {
+    _categoryMap.clear();
+    for (var cat in categories) {
+      final id = cat['category_id']?.toString();
+      final name = cat['category_name']?.toString();
+      if (id != null && name != null) {
+        _categoryMap[id] = name;
+      }
+    }
+  }
+
+  List<Channel> _mapChannelsWithFavorites(List<Channel> channels) {
+    return channels.map((c) {
+      return Channel(
+        id: c.id,
+        name: c.name,
+        streamUrl: c.streamUrl,
+        logoUrl: c.logoUrl,
+        category: c.category,
+        isFavorite: _favoriteIds.contains(c.id),
+        rating: c.rating,
+        type: c.type,
+      );
+    }).toList();
+  }
+
+  List<Channel> _mapChannelsWithCategoriesAndFavorites(List<Channel> channels) {
+    return channels.map((c) {
+      final categoryName = _categoryMap[c.category] ?? c.category;
+      return Channel(
+        id: c.id,
+        name: c.name,
+        streamUrl: c.streamUrl,
+        logoUrl: c.logoUrl,
+        category: categoryName,
+        isFavorite: _favoriteIds.contains(c.id),
+        rating: c.rating,
+        type: c.type,
+      );
+    }).toList();
+  }
+
+  Future<void> _saveCredentials(String url, String user, String pass) async {
+    _savedUrl = url;
+    _savedUser = user;
+    _savedPass = pass;
+    _isXtream = true;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('iptv_url', url);
+    await prefs.setString('iptv_user', user);
+    await prefs.setString('iptv_pass', pass);
+    await prefs.setBool('is_xtream', true);
   }
 
   void clearList() async {

@@ -5,6 +5,8 @@ class Channel {
   final String? logoUrl;
   final String category;
   final bool isFavorite;
+  final double? rating;
+  final String type; // 'live', 'movie', 'series'
 
   Channel({
     required this.id,
@@ -13,6 +15,8 @@ class Channel {
     this.logoUrl,
     required this.category,
     this.isFavorite = false,
+    this.rating,
+    this.type = 'live',
   });
 
   factory Channel.fromJson(Map<String, dynamic> json) {
@@ -23,6 +27,10 @@ class Channel {
       logoUrl: json['logo'],
       category: json['category'] ?? 'Geral',
       isFavorite: json['isFavorite'] ?? false,
+      rating: json['rating'] != null
+          ? double.tryParse(json['rating'].toString())
+          : null,
+      type: json['type'] ?? 'live',
     );
   }
 }
