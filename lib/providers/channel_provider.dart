@@ -295,21 +295,6 @@ class ChannelProvider with ChangeNotifier {
     }
   }
 
-  List<Channel> _mapChannelsWithFavorites(List<Channel> channels) {
-    return channels.map((c) {
-      return Channel(
-        id: c.id,
-        name: c.name,
-        streamUrl: c.streamUrl,
-        logoUrl: c.logoUrl,
-        category: c.category,
-        isFavorite: _favoriteIds.contains(c.id),
-        rating: c.rating,
-        type: c.type,
-      );
-    }).toList();
-  }
-
   List<Channel> _mapChannelsWithCategoriesAndFavorites(List<Channel> channels) {
     return channels.map((c) {
       final categoryName = _categoryMap[c.category] ?? c.category;

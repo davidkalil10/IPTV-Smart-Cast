@@ -115,6 +115,7 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
           currentSeason: _selectedSeason,
           seasons: _seasons,
           allEpisodesMap: _episodesMap,
+          seriesId: widget.channel.id,
         ),
       ),
     );

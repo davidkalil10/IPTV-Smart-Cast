@@ -8,10 +8,14 @@ import 'screens/home_screen.dart';
 import 'screens/user_selection_screen.dart';
 
 import 'package:media_kit/media_kit.dart';
+import 'services/playback_service.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();
+
+  // Initialize Playback Service early
+  await PlaybackService().init();
 
   // Force landscape orientation
   SystemChrome.setPreferredOrientations([

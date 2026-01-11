@@ -4,6 +4,11 @@ import '../providers/channel_provider.dart';
 import '../providers/auth_provider.dart';
 import '../models/channel.dart';
 import '../widgets/channel_grid_item.dart';
+import '../services/playback_service.dart';
+import '../services/iptv_service.dart';
+import 'player_screen.dart';
+import 'movie_detail_screen.dart';
+import 'series_detail_screen.dart';
 
 enum SortOption { defaultSort, topAdded, az, za }
 
@@ -45,6 +50,8 @@ class _ContentListScreenState extends State<ContentListScreen> {
     });
   }
 
+  Set<String> _resumeIds = {};
+
   @override
   void dispose() {
     _categorySearchController.dispose();
@@ -80,6 +87,15 @@ class _ContentListScreenState extends State<ContentListScreen> {
           forceRefresh: widget.forceRefresh,
         );
       }
+
+      // Load Playback Service
+      PlaybackService().init().then((_) {
+        if (mounted) {
+          setState(() {
+            _resumeIds = PlaybackService().getInProgressContentIds().toSet();
+          });
+        }
+      });
     }
   }
 
@@ -87,7 +103,11 @@ class _ContentListScreenState extends State<ContentListScreen> {
     if (channels.isEmpty) return ['TODOS', 'FAVORITOS'];
     final categories = channels.map((c) => c.category).toSet().toList();
     categories.sort((a, b) => a.compareTo(b));
-    return ['TODOS', 'FAVORITOS', ...categories];
+
+    // Check if we have items to resume
+    final hasResumeItems = channels.any((c) => _resumeIds.contains(c.id));
+
+    return ['TODOS', 'FAVORITOS', if (hasResumeItems) 'RETOMAR', ...categories];
   }
 
   List<Channel> _getFilteredChannels(List<Channel> channels) {
@@ -98,6 +118,8 @@ class _ContentListScreenState extends State<ContentListScreen> {
         matchesCategory = true;
       } else if (_selectedCategory == 'FAVORITOS') {
         matchesCategory = channel.isFavorite;
+      } else if (_selectedCategory == 'RETOMAR') {
+        matchesCategory = _resumeIds.contains(channel.id);
       } else {
         matchesCategory = channel.category == _selectedCategory;
       }
@@ -378,6 +400,10 @@ class _ContentListScreenState extends State<ContentListScreen> {
                                       .length;
                                 } else if (category == 'TODOS') {
                                   count = provider.channels.length;
+                                } else if (category == 'RETOMAR') {
+                                  count = provider.channels
+                                      .where((c) => _resumeIds.contains(c.id))
+                                      .length;
                                 } else {
                                   count = provider.channels
                                       .where((c) => c.category == category)
@@ -644,6 +670,321 @@ class _ContentListScreenState extends State<ContentListScreen> {
                                           itemBuilder: (context, index) {
                                             return ChannelGridItem(
                                               channel: displayedContent[index],
+                                              onTap: () async {
+                                                final channel =
+                                                    displayedContent[index];
+                                                final provider = context
+                                                    .read<ChannelProvider>();
+
+                                                if (_selectedCategory ==
+                                                    'RETOMAR') {
+                                                  // --- RESUME LOGIC ---
+                                                  if (channel.type ==
+                                                      'series') {
+                                                    // SERIES RESUME
+                                                    final lastEpId =
+                                                        PlaybackService()
+                                                            .getLastEpisodeId(
+                                                              channel.id,
+                                                            );
+                                                    if (lastEpId != null) {
+                                                      showDialog(
+                                                        context: context,
+                                                        barrierDismissible:
+                                                            false,
+                                                        builder: (_) =>
+                                                            const Center(
+                                                              child:
+                                                                  CircularProgressIndicator(),
+                                                            ),
+                                                      );
+                                                      try {
+                                                        final service =
+                                                            IptvService();
+                                                        final data = await service
+                                                            .getSeriesInfo(
+                                                              channel.id,
+                                                              provider
+                                                                  .savedUrl!,
+                                                              provider
+                                                                  .savedUser!,
+                                                              provider
+                                                                  .savedPass!,
+                                                            );
+
+                                                        if (mounted)
+                                                          Navigator.pop(
+                                                            context,
+                                                          );
+
+                                                        // Find Episode
+                                                        Map<String, dynamic>?
+                                                        episode;
+                                                        List<dynamic>
+                                                        episodeList = [];
+                                                        String? season;
+                                                        List<String> seasons =
+                                                            [];
+                                                        Map<String, dynamic>
+                                                        episodesMap = {};
+
+                                                        final episodesData =
+                                                            data['episodes'];
+                                                        if (episodesData
+                                                            is Map<
+                                                              String,
+                                                              dynamic
+                                                            >) {
+                                                          episodesMap =
+                                                              episodesData;
+                                                          seasons = episodesMap
+                                                              .keys
+                                                              .toList();
+                                                          // Simple Sort
+                                                          seasons.sort(
+                                                            (a, b) =>
+                                                                (int.tryParse(
+                                                                          a,
+                                                                        ) ??
+                                                                        0)
+                                                                    .compareTo(
+                                                                      int.tryParse(
+                                                                            b,
+                                                                          ) ??
+                                                                          0,
+                                                                    ),
+                                                          );
+
+                                                          for (var k
+                                                              in seasons) {
+                                                            final list =
+                                                                episodesMap[k]
+                                                                    as List;
+                                                            final found = list
+                                                                .firstWhere(
+                                                                  (e) =>
+                                                                      e['id']
+                                                                          .toString() ==
+                                                                      lastEpId,
+                                                                  orElse: () =>
+                                                                      null,
+                                                                );
+                                                            if (found != null) {
+                                                              episode = found;
+                                                              season = k;
+                                                              episodeList =
+                                                                  list;
+                                                              break;
+                                                            }
+                                                          }
+                                                        }
+
+                                                        if (episode != null &&
+                                                            mounted) {
+                                                          final ext =
+                                                              episode['container_extension'] ??
+                                                              'mp4';
+                                                          final url =
+                                                              '${provider.savedUrl}/series/${provider.savedUser}/${provider.savedPass}/$lastEpId.$ext';
+                                                          final epName =
+                                                              'S${season}E${episode['episode_num']}';
+
+                                                          final epChannel = Channel(
+                                                            id: lastEpId,
+                                                            name:
+                                                                '${channel.name} - $epName',
+                                                            streamUrl: url,
+                                                            logoUrl:
+                                                                episode['info']?['movie_image'] ??
+                                                                channel.logoUrl,
+                                                            category: channel
+                                                                .category,
+                                                            type:
+                                                                'series_episode',
+                                                          );
+
+                                                          final progress =
+                                                              PlaybackService()
+                                                                  .getProgress(
+                                                                    lastEpId,
+                                                                  );
+
+                                                          await Navigator.push(
+                                                            context,
+                                                            MaterialPageRoute(
+                                                              builder: (_) => PlayerScreen(
+                                                                channel:
+                                                                    epChannel,
+                                                                startPosition:
+                                                                    Duration(
+                                                                      seconds:
+                                                                          progress,
+                                                                    ),
+                                                                seriesId:
+                                                                    channel.id,
+                                                                episodes:
+                                                                    episodeList,
+                                                                currentEpisodeIndex:
+                                                                    episodeList
+                                                                        .indexOf(
+                                                                          episode,
+                                                                        ),
+                                                                currentSeason:
+                                                                    season,
+                                                                seasons:
+                                                                    seasons,
+                                                                allEpisodesMap:
+                                                                    episodesMap,
+                                                              ),
+                                                            ),
+                                                          );
+                                                        } else if (mounted) {
+                                                          // Fallback if episode not found
+                                                          await Navigator.push(
+                                                            context,
+                                                            MaterialPageRoute(
+                                                              builder: (_) =>
+                                                                  SeriesDetailScreen(
+                                                                    channel:
+                                                                        channel,
+                                                                  ),
+                                                            ),
+                                                          );
+                                                        }
+                                                      } catch (e) {
+                                                        if (mounted) {
+                                                          Navigator.pop(
+                                                            context,
+                                                          ); // Close dialog if error
+                                                          ScaffoldMessenger.of(
+                                                            context,
+                                                          ).showSnackBar(
+                                                            SnackBar(
+                                                              content: Text(
+                                                                "Erro ao carregar série: $e",
+                                                              ),
+                                                            ),
+                                                          );
+                                                        }
+                                                      }
+                                                    } else {
+                                                      // No history? Detail
+                                                      await Navigator.push(
+                                                        context,
+                                                        MaterialPageRoute(
+                                                          builder: (_) =>
+                                                              SeriesDetailScreen(
+                                                                channel:
+                                                                    channel,
+                                                              ),
+                                                        ),
+                                                      );
+                                                    }
+                                                  } else {
+                                                    // MOVIE / LIVE RESUME
+                                                    final progress =
+                                                        PlaybackService()
+                                                            .getProgress(
+                                                              channel.id,
+                                                            );
+                                                    await Navigator.push(
+                                                      context,
+                                                      MaterialPageRoute(
+                                                        builder: (context) =>
+                                                            PlayerScreen(
+                                                              channel: channel,
+                                                              startPosition:
+                                                                  Duration(
+                                                                    seconds:
+                                                                        progress,
+                                                                  ),
+                                                            ),
+                                                      ),
+                                                    );
+                                                  }
+                                                } else {
+                                                  // --- STANDARD NAVIGATION ---
+                                                  if (channel.type == 'movie') {
+                                                    await Navigator.push(
+                                                      context,
+                                                      MaterialPageRoute(
+                                                        builder: (context) =>
+                                                            MovieDetailScreen(
+                                                              channel: channel,
+                                                            ),
+                                                      ),
+                                                    );
+                                                  } else if (channel.type ==
+                                                      'series') {
+                                                    await Navigator.push(
+                                                      context,
+                                                      MaterialPageRoute(
+                                                        builder: (context) =>
+                                                            SeriesDetailScreen(
+                                                              channel: channel,
+                                                            ),
+                                                      ),
+                                                    );
+                                                  } else {
+                                                    await Navigator.push(
+                                                      context,
+                                                      MaterialPageRoute(
+                                                        builder: (context) =>
+                                                            PlayerScreen(
+                                                              channel: channel,
+                                                            ),
+                                                      ),
+                                                    );
+                                                  }
+                                                }
+
+                                                // --- REFRESH ON RETURN ---
+                                                if (mounted) {
+                                                  setState(() {
+                                                    _resumeIds = PlaybackService()
+                                                        .getInProgressContentIds()
+                                                        .toSet();
+                                                  });
+                                                }
+                                              },
+                                              onLongPress:
+                                                  (_selectedCategory ==
+                                                      'RETOMAR')
+                                                  ? () async {
+                                                      final channel =
+                                                          displayedContent[index];
+                                                      await PlaybackService()
+                                                          .removeProgress(
+                                                            channel.id,
+                                                            seriesId:
+                                                                channel.type ==
+                                                                    'series'
+                                                                ? channel.id
+                                                                : null,
+                                                          );
+                                                      if (mounted) {
+                                                        setState(() {
+                                                          _resumeIds =
+                                                              PlaybackService()
+                                                                  .getInProgressContentIds()
+                                                                  .toSet();
+                                                        });
+                                                        ScaffoldMessenger.of(
+                                                          context,
+                                                        ).showSnackBar(
+                                                          SnackBar(
+                                                            content: Text(
+                                                              "${channel.name} removido de Retomar",
+                                                            ),
+                                                            duration:
+                                                                const Duration(
+                                                                  seconds: 1,
+                                                                ),
+                                                          ),
+                                                        );
+                                                      }
+                                                    }
+                                                  : null,
                                             );
                                           },
                                         );

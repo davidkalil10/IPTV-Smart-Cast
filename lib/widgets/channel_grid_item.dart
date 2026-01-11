@@ -9,8 +9,15 @@ import '../providers/channel_provider.dart';
 
 class ChannelGridItem extends StatelessWidget {
   final Channel channel;
+  final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
 
-  const ChannelGridItem({super.key, required this.channel});
+  const ChannelGridItem({
+    super.key,
+    required this.channel,
+    this.onTap,
+    this.onLongPress,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -19,45 +26,49 @@ class ChannelGridItem extends StatelessWidget {
       color: Colors.grey[900], // Dark background for the card
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       child: InkWell(
-        onTap: () {
-          if (channel.type == 'movie') {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => MovieDetailScreen(channel: channel),
-              ),
-            );
-          } else if (channel.type == 'series') {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => SeriesDetailScreen(channel: channel),
-              ),
-            );
-          } else {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => PlayerScreen(channel: channel),
-              ),
-            );
-          }
-        },
-        onLongPress: () {
-          // Toggle Favorite
-          context.read<ChannelProvider>().toggleFavorite(channel);
-          ScaffoldMessenger.of(context).hideCurrentSnackBar();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                channel.isFavorite
-                    ? '${channel.name} removido dos favoritos'
-                    : '${channel.name} adicionado aos favoritos',
-              ),
-              duration: const Duration(seconds: 1),
-            ),
-          );
-        },
+        onTap:
+            onTap ??
+            () {
+              if (channel.type == 'movie') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => MovieDetailScreen(channel: channel),
+                  ),
+                );
+              } else if (channel.type == 'series') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => SeriesDetailScreen(channel: channel),
+                  ),
+                );
+              } else {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => PlayerScreen(channel: channel),
+                  ),
+                );
+              }
+            },
+        onLongPress:
+            onLongPress ??
+            () {
+              // Toggle Favorite
+              context.read<ChannelProvider>().toggleFavorite(channel);
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    channel.isFavorite
+                        ? '${channel.name} removido dos favoritos'
+                        : '${channel.name} adicionado aos favoritos',
+                  ),
+                  duration: const Duration(seconds: 1),
+                ),
+              );
+            },
         child: Stack(
           children: [
             Column(

@@ -7,6 +7,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../models/channel.dart';
 import '../widgets/video_controls_overlay.dart';
 import '../providers/channel_provider.dart';
+import '../services/playback_service.dart';
+import 'dart:async';
 
 class PlayerScreen extends StatefulWidget {
   final Channel channel;
@@ -16,6 +18,8 @@ class PlayerScreen extends StatefulWidget {
 
   final List<String>? seasons;
   final Map<String, dynamic>? allEpisodesMap;
+  final Duration? startPosition;
+  final String? seriesId;
 
   const PlayerScreen({
     super.key,
@@ -25,6 +29,8 @@ class PlayerScreen extends StatefulWidget {
     this.currentSeason,
     this.seasons,
     this.allEpisodesMap,
+    this.startPosition,
+    this.seriesId,
   });
 
   @override
@@ -34,6 +40,7 @@ class PlayerScreen extends StatefulWidget {
 class _PlayerScreenState extends State<PlayerScreen> {
   late final Player _player;
   late final VideoController _videoController;
+  Timer? _progressTimer;
 
   bool _isError = false;
   String _errorMessage = '';
@@ -60,8 +67,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
     // Create a VideoController to handle video output from [Player]
     _videoController = VideoController(_player);
 
-    // Play the media
-    await _player.open(Media(widget.channel.streamUrl));
+    // Play the media (start paused if we are going to seek)
+    await _player.open(
+      Media(widget.channel.streamUrl),
+      play: widget.startPosition == null,
+    );
 
     // Listen for errors
     _player.stream.error.listen((error) {
@@ -75,6 +85,56 @@ class _PlayerScreenState extends State<PlayerScreen> {
     });
 
     setState(() {});
+
+    if (widget.startPosition != null) {
+      debugPrint(
+        "PLAYER: Starting resume process. Target: ${widget.startPosition}",
+      );
+      try {
+        // Wait for metadata/duration load
+        if (_player.state.duration == Duration.zero) {
+          debugPrint("PLAYER: Waiting for duration...");
+          await _player.stream.duration
+              .firstWhere((d) => d != Duration.zero)
+              .timeout(const Duration(seconds: 10));
+          debugPrint("PLAYER: Duration loaded: ${_player.state.duration}");
+        }
+
+        // Seek
+        debugPrint("PLAYER: Seeking to: ${widget.startPosition}");
+        await _player.seek(widget.startPosition!);
+        debugPrint("PLAYER: Seek done.");
+
+        // Resume
+        await _player.play();
+        debugPrint("PLAYER: Play called.");
+      } catch (e) {
+        debugPrint("PLAYER: Seek error: $e");
+        await _player.play();
+      }
+    } else {
+      debugPrint("PLAYER: No startPosition provided. Starting normally.");
+    }
+
+    // Start tracking progress
+    _startProgressTracking();
+  }
+
+  void _startProgressTracking() {
+    // Save every 5 seconds
+    _progressTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      if (!mounted) return;
+      final position = _player.state.position.inSeconds;
+      final duration = _player.state.duration.inSeconds;
+      if (duration > 0) {
+        PlaybackService().saveProgress(
+          widget.channel.id,
+          position,
+          duration,
+          seriesId: widget.seriesId,
+        );
+      }
+    });
   }
 
   @override
@@ -84,6 +144,19 @@ class _PlayerScreenState extends State<PlayerScreen> {
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
     ]);
+
+    _progressTimer?.cancel();
+    // One last save on exit
+    final position = _player.state.position.inSeconds;
+    final duration = _player.state.duration.inSeconds;
+    if (duration > 0) {
+      PlaybackService().saveProgress(
+        widget.channel.id,
+        position,
+        duration,
+        seriesId: widget.seriesId,
+      );
+    }
 
     _player.dispose();
     super.dispose();
@@ -180,6 +253,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
           currentSeason: season,
           seasons: widget.seasons,
           allEpisodesMap: widget.allEpisodesMap,
+          seriesId: widget.seriesId,
         ),
       ),
     );

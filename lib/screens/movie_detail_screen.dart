@@ -5,6 +5,7 @@ import 'dart:ui';
 import '../models/channel.dart';
 import '../providers/channel_provider.dart';
 import '../services/iptv_service.dart';
+import '../services/playback_service.dart';
 import 'player_screen.dart';
 
 class MovieDetailScreen extends StatefulWidget {
@@ -250,35 +251,76 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
 
                                         const Spacer(),
 
-                                        // Play Button (Only Play)
-                                        ElevatedButton(
-                                          onPressed: () {
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (context) =>
-                                                    PlayerScreen(
-                                                      channel: widget.channel,
+                                        // Resume/Play Button
+                                        FutureBuilder<int>(
+                                          future: Future.value(
+                                            PlaybackService().getProgress(
+                                              widget.channel.id,
+                                            ),
+                                          ),
+                                          builder: (context, snapshot) {
+                                            final progress = snapshot.data ?? 0;
+                                            final hasProgress = progress > 10;
+
+                                            return ElevatedButton(
+                                              onPressed: () async {
+                                                await Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    builder: (context) =>
+                                                        PlayerScreen(
+                                                          channel:
+                                                              widget.channel,
+                                                          startPosition:
+                                                              hasProgress
+                                                              ? Duration(
+                                                                  seconds:
+                                                                      progress,
+                                                                )
+                                                              : null,
+                                                        ),
+                                                  ),
+                                                );
+                                                // Refresh to check if finished or progress changed
+                                                setState(() {});
+                                              },
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor:
+                                                    Colors.grey[900],
+                                                foregroundColor: Colors.white,
+                                                minimumSize: const Size(
+                                                  140,
+                                                  45,
+                                                ),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(5),
+                                                ),
+                                                side: const BorderSide(
+                                                  color: Colors.white24,
+                                                ),
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(
+                                                    hasProgress
+                                                        ? Icons.replay
+                                                        : Icons.play_arrow,
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  Text(
+                                                    hasProgress
+                                                        ? 'Retomar'
+                                                        : 'Play',
+                                                    style: const TextStyle(
+                                                      fontSize: 16,
                                                     ),
+                                                  ),
+                                                ],
                                               ),
                                             );
                                           },
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: Colors.grey[900],
-                                            foregroundColor: Colors.white,
-                                            minimumSize: const Size(140, 45),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(5),
-                                            ),
-                                            side: const BorderSide(
-                                              color: Colors.white24,
-                                            ),
-                                          ),
-                                          child: const Text(
-                                            'Play',
-                                            style: TextStyle(fontSize: 16),
-                                          ),
                                         ),
 
                                         const SizedBox(height: 10),
