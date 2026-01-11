@@ -4,7 +4,12 @@ import 'providers/auth_provider.dart';
 import 'providers/channel_provider.dart';
 import 'screens/login_screen.dart';
 
+import 'package:media_kit/media_kit.dart';
+
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  MediaKit.ensureInitialized();
+
   runApp(
     MultiProvider(
       providers: [

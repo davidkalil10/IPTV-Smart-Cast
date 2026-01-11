@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:video_player/video_player.dart';
+import 'package:media_kit/media_kit.dart';
 import '../models/channel.dart';
 
 class VideoControlsOverlay extends StatefulWidget {
-  final VideoPlayerController controller;
+  final Player player;
   final Channel channel;
   final VoidCallback onNextEpisode;
   final VoidCallback onShowEpisodes;
@@ -12,7 +12,7 @@ class VideoControlsOverlay extends StatefulWidget {
 
   const VideoControlsOverlay({
     super.key,
-    required this.controller,
+    required this.player,
     required this.channel,
     required this.onNextEpisode,
     required this.onShowEpisodes,
@@ -28,7 +28,7 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
   bool _showSettings = false;
   bool _isLocked = false;
   Timer? _hideTimer;
-  double _volume = 1.0;
+  double _volume = 100.0; // media_kit volume is 0..100
   double _brightness = 0.5;
 
   // Aspect Ratio State
@@ -39,38 +39,150 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
     '16:9',
     '4:3',
   ];
-  int _aspectRatioIndex = 0; // Starts at Fit Parent usually
+  int _aspectRatioIndex = 0;
   String? _osdMessage;
   Timer? _osdTimer;
 
-  // Settings Mock State
-  int _selectedVideoTrack = 1;
-  int _selectedAudioTrack = 1;
-  int _selectedSubtitleTrack = 0; // Disabled by default
+  // Track State
+  VideoTrack? _selectedVideoTrack;
+  AudioTrack? _selectedAudioTrack;
+  SubtitleTrack? _selectedSubtitleTrack;
+
+  // Subtitle Settings
   int _subtitleFontSize = 20;
 
   // Drag updates
   bool _isDraggingVolume = false;
   bool _isDraggingBrightness = false;
 
+  // Stream Subscriptions
+  List<StreamSubscription> _subscriptions = [];
+
+  // Player State Cache for UI
+  Duration _position = Duration.zero;
+  Duration _duration = Duration.zero;
+  bool _isPlaying = false;
+  double _playbackSpeed = 1.0;
+
   @override
   void initState() {
     super.initState();
     _startHideTimer();
-    widget.controller.setVolume(_volume);
-    widget.controller.addListener(_onControllerScroll);
+
+    // Initial State
+    _volume = widget.player.state.volume;
+    _position = widget.player.state.position;
+    _duration = widget.player.state.duration;
+    _isPlaying = widget.player.state.playing;
+    _playbackSpeed = widget.player.state.rate;
+    _selectedVideoTrack = widget.player.state.track.video;
+    _selectedAudioTrack = widget.player.state.track.audio;
+    _selectedSubtitleTrack = widget.player.state.track.subtitle;
+
+    // Initial enforcement
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _enforceDefaultTracks();
+    });
+
+    // Subscribe to streams
+    _subscriptions.add(
+      widget.player.stream.position.listen((pos) {
+        if (mounted) setState(() => _position = pos);
+      }),
+    );
+    _subscriptions.add(
+      widget.player.stream.duration.listen((dur) {
+        if (mounted) setState(() => _duration = dur);
+      }),
+    );
+    _subscriptions.add(
+      widget.player.stream.playing.listen((playing) {
+        if (mounted) setState(() => _isPlaying = playing);
+      }),
+    );
+    _subscriptions.add(
+      widget.player.stream.rate.listen((rate) {
+        if (mounted) setState(() => _playbackSpeed = rate);
+      }),
+    );
+    _subscriptions.add(
+      widget.player.stream.volume.listen((vol) {
+        if (mounted) setState(() => _volume = vol);
+      }),
+    );
+
+    // Listen for currently selected track changes
+    _subscriptions.add(
+      widget.player.stream.track.listen((track) {
+        if (mounted) {
+          setState(() {
+            _selectedVideoTrack = track.video;
+            _selectedAudioTrack = track.audio;
+            _selectedSubtitleTrack = track.subtitle;
+          });
+        }
+      }),
+    );
+
+    // Listen for available tracks list changes (to enforce defaults when loaded)
+    _subscriptions.add(
+      widget.player.stream.tracks.listen((tracks) {
+        if (mounted) {
+          setState(() {}); // Update UI with new keys
+          _enforceDefaultTracks();
+        }
+      }),
+    );
+  }
+
+  void _enforceDefaultTracks() {
+    // Helper to check and set default if current is auto
+    // We assume 'auto' track has id 'auto'.
+    final tracks = widget.player.state.tracks;
+
+    // Video
+    if (_selectedVideoTrack?.id == 'auto' || _selectedVideoTrack == null) {
+      final realVideo = tracks.video
+          .where((t) => t.id != 'auto' && t.id != 'no')
+          .toList();
+      if (realVideo.isNotEmpty) {
+        // Enforce first real track ("1:")
+        widget.player.setVideoTrack(realVideo.first);
+      }
+    }
+
+    // Audio
+    if (_selectedAudioTrack?.id == 'auto' || _selectedAudioTrack == null) {
+      final realAudio = tracks.audio
+          .where((t) => t.id != 'auto' && t.id != 'no')
+          .toList();
+      if (realAudio.isNotEmpty) {
+        widget.player.setAudioTrack(realAudio.first);
+      }
+    }
+
+    // Subtitle
+    // User requested "1:" for subtitle too.
+    // Assuming this means enable first subtitle if available, avoiding 'auto'.
+    if (_selectedSubtitleTrack?.id == 'auto' ||
+        _selectedSubtitleTrack == null) {
+      final realSubs = tracks.subtitle
+          .where((t) => t.id != 'auto' && t.id != 'no')
+          .toList();
+      if (realSubs.isNotEmpty) {
+        widget.player.setSubtitleTrack(realSubs.first);
+      }
+    }
   }
 
   @override
   void dispose() {
-    widget.controller.removeListener(_onControllerScroll);
+    for (var sub in _subscriptions) {
+      sub.cancel();
+    }
     _hideTimer?.cancel();
     _osdTimer?.cancel();
     super.dispose();
-  }
-
-  void _onControllerScroll() {
-    if (mounted) setState(() {});
   }
 
   void _toggleSettings() {
@@ -106,17 +218,13 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
 
   void _seekRelative(Duration amount) {
     _resetHideTimer();
-    final newPos = widget.controller.value.position + amount;
-    widget.controller.seekTo(newPos);
+    final newPos = _position + amount;
+    widget.player.seek(newPos);
   }
 
   void _togglePlay() {
     _resetHideTimer();
-    if (widget.controller.value.isPlaying) {
-      widget.controller.pause();
-    } else {
-      widget.controller.play();
-    }
+    widget.player.playOrPause();
   }
 
   void _showOsdMessage(String msg) {
@@ -134,13 +242,16 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
     });
     _showOsdMessage(_aspectRatios[_aspectRatioIndex]);
 
-    // Notify parent
-    if (widget.controller.value.isInitialized) {
-      final videoRatio = widget.controller.value.aspectRatio;
-      final newRatio = _getAspectRatio(videoRatio);
-      final newFit = _getBoxFit();
-      widget.onResize(newRatio, newFit);
-    }
+    // Calculate aspect ratio
+    // If width/height are null (audio only or not loaded), default to 16:9
+    final videoParams =
+        widget.player.state.width != null && widget.player.state.height != null
+        ? widget.player.state.width! / widget.player.state.height!
+        : 16 / 9;
+
+    final newRatio = _getAspectRatio(videoParams);
+    final newFit = _getBoxFit();
+    widget.onResize(newRatio, newFit);
   }
 
   double _getAspectRatio(double videoRatio) {
@@ -150,8 +261,11 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
       case '4:3':
         return 4 / 3;
       case 'Match Parent':
-        return 1.0; // Handled by wrapping layout usually, but here simulating via AspectRatio overrides
+        return 1.0;
       case 'Fill Parent':
+        // Approximation, user wants to fill.
+        // Returning screen ratio here is a hack if we are using AspectRatio widget.
+        // A better approach is dealing with BoxFit.cover
         return MediaQuery.of(context).size.width /
             MediaQuery.of(context).size.height;
       case 'Fit Parent':
@@ -169,8 +283,7 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
       case 'Fit Parent':
         return BoxFit.contain;
       default:
-        return BoxFit
-            .contain; // For forced aspect ratios, we typically let the AspectRatio widget handle it
+        return BoxFit.contain;
     }
   }
 
@@ -204,7 +317,7 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
               ...[0.75, 1.0, 1.25, 1.5, 1.75, 2.0].map((speed) {
                 return ListTile(
                   leading: Icon(
-                    widget.controller.value.playbackSpeed == speed
+                    _playbackSpeed == speed
                         ? Icons.radio_button_checked
                         : Icons.radio_button_unchecked,
                     color: Colors.grey[800],
@@ -214,9 +327,8 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
                     style: const TextStyle(color: Colors.black),
                   ),
                   onTap: () {
-                    widget.controller.setPlaybackSpeed(speed);
+                    widget.player.setRate(speed);
                     Navigator.pop(context);
-                    setState(() {}); // Refresh UI
                   },
                 );
               }),
@@ -232,11 +344,14 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
       double delta = details.primaryDelta! / -200;
       if (isRightSide) {
         _isDraggingVolume = true;
-        _volume = (_volume + delta).clamp(0.0, 1.0);
-        widget.controller.setVolume(_volume);
+        // Volume 0..100
+        double newVol = (_volume + (delta * 100)).clamp(0.0, 100.0);
+        widget.player.setVolume(newVol);
       } else {
         _isDraggingBrightness = true;
         _brightness = (_brightness + delta).clamp(0.0, 1.0);
+        // Note: For actual brightness control, use a plugin like screen_brightness
+        // This variable currently just affects the opacity overlay.
       }
     });
   }
@@ -256,48 +371,69 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
     return d.inHours > 0 ? '$hours:$minutes:$seconds' : '$minutes:$seconds';
   }
 
-  List<String> _getVideoTracks() {
-    // Return default if no tracks detected
-    return ['Padrão'];
-  }
+  // --- SETTINGS WIDGETS ---
 
-  List<String> _getAudioTracks() {
-    // Return default if no tracks detected
-    return ['Padrão'];
-  }
-
-  List<String> _getSubtitleTracks() {
-    // Subtitles can be empty if none exist
-    return [];
+  Widget _buildSettingSection<T>(
+    String title,
+    List<T> items,
+    T? selectedItem,
+    Function(T) onSelect,
+    String Function(T) labelBuilder,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 50, top: 10, bottom: 5),
+          child: Row(
+            children: [
+              Icon(
+                title.contains('vídeo')
+                    ? Icons.video_settings
+                    : title.contains('áudio')
+                    ? Icons.audiotrack
+                    : Icons.subtitles,
+                color: Colors.white,
+                size: 20,
+              ),
+              const SizedBox(width: 10),
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+        ...items.map((item) {
+          final isSelected = selectedItem == item;
+          return RadioListTile<T>(
+            value: item,
+            groupValue: selectedItem,
+            onChanged: (val) {
+              if (val != null) onSelect(val);
+            },
+            activeColor: Colors.white,
+            title: Text(
+              labelBuilder(item),
+              style: TextStyle(
+                color: isSelected ? Colors.white : Colors.white60,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+            dense: true,
+            contentPadding: const EdgeInsets.only(left: 30),
+          );
+        }).toList(),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // ... rest of build logic
-
-    // We need to Apply Aspect Ratio to the *Parent* of this Overlay really, but since this Overlay sits ON TOP of the video,
-    // we can't easily change the video's sizing from *inside* here without a callback or state lift.
-    // However, typical pattern is the VideoPlayer is in the background.
-    // To solve this properly, we should wrap the VideoPlayer in the Parent Screen with a ValueListenable or similar.
-    // BUT since I am editing THIS file, maybe I can just display the Message here, and rely on the Parent to read a "Global" or "Provider" state?
-    // Actually, 'VideoControlsOverlay' is just Controls. The 'PlayerScreen' has the `AspectRatio` widget.
-    // I will implement a quick workaround: The 'PlayerScreen' needs to be updated to respect this.
-    // For now, I will implement the OSD and the State, but the actual resizing might not work unless I lift state or use a GlobalKey/Provider.
-    // Wait, the user asked to "alternar". I need to allow this change.
-    // The cleanest way without refactoring PlayerScreen deeply is to let PlayerScreen manage it?
-    // No, I'll assume for this task I can only edit this file to show the UI, and if I need to change video size, I might need to edit PlayerScreen too.
-    // Let's check: PlayerScreen builds `AspectRatio` using `_videoPlayerController!.value.aspectRatio`.
-    // I can't change that from here easily without a callback.
-    // I will add a callback `onAspectRatioChanged`? Or just implement the OSD for now?
-    // User requirement: "proporção do conteudo na tela deve alternar".
-    // I'll stick to implementing the UI logic here and I will simply update `PlayerScreen` in a subsequent step if needed, or if I can, I'll rewrite `PlayerScreen` to listen to a stream/callback.
-    // Actually, `VideoControlsOverlay` is inside `Stack`.
-    // I will add a callback to the constructor for `onAspectRatioChanged`?
-    // Let's do a simple hack: I will assume `PlayerScreen` isn't updating yet, but I will implement the logic.
-    // *Self-correction*: I can't satisfy the user fully without the video actually changing size.
-    // I'll modify `PlayerScreen` in the next step to use a notifier or state.
-    // For this file, I'll impl the UI.
-
     if (_isLocked) {
       return GestureDetector(
         onTap: () {
@@ -362,7 +498,7 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
               ),
             ),
 
-            // OSD Message (Centered)
+            // OSD Message
             if (_osdMessage != null)
               Container(
                 padding: const EdgeInsets.symmetric(
@@ -453,7 +589,7 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
                     const SizedBox(width: 40),
                     IconButton(
                       icon: Icon(
-                        widget.controller.value.isPlaying
+                        _isPlaying
                             ? Icons.pause_circle_filled
                             : Icons.play_circle_fill,
                         color: Colors.white,
@@ -490,9 +626,9 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
                         child: RotatedBox(
                           quarterTurns: -1,
                           child: LinearProgressIndicator(
-                            value: _volume,
+                            value: _volume / 100,
                             backgroundColor: Colors.grey[700],
-                            valueColor: const AlwaysStoppedAnimation<Color>(
+                            valueColor: const AlwaysStoppedAnimation(
                               Colors.white,
                             ),
                           ),
@@ -517,7 +653,7 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
                           child: LinearProgressIndicator(
                             value: _brightness,
                             backgroundColor: Colors.grey[700],
-                            valueColor: const AlwaysStoppedAnimation<Color>(
+                            valueColor: const AlwaysStoppedAnimation(
                               Colors.white,
                             ),
                           ),
@@ -549,7 +685,7 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
                       Row(
                         children: [
                           Text(
-                            _formatDuration(widget.controller.value.position),
+                            _formatDuration(_position),
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 12,
@@ -568,28 +704,17 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
                                 thumbColor: Colors.white,
                               ),
                               child: Slider(
-                                value: widget
-                                    .controller
-                                    .value
-                                    .position
-                                    .inSeconds
-                                    .toDouble()
-                                    .clamp(
-                                      0,
-                                      widget.controller.value.duration.inSeconds
-                                          .toDouble(),
-                                    ),
+                                value: _position.inSeconds.toDouble().clamp(
+                                  0,
+                                  _duration.inSeconds.toDouble(),
+                                ),
                                 min: 0,
-                                max:
-                                    widget.controller.value.duration.inSeconds
-                                            .toDouble() >
-                                        0
-                                    ? widget.controller.value.duration.inSeconds
-                                          .toDouble()
+                                max: _duration.inSeconds.toDouble() > 0
+                                    ? _duration.inSeconds.toDouble()
                                     : 1.0,
                                 onChanged: (val) {
                                   _resetHideTimer();
-                                  widget.controller.seekTo(
+                                  widget.player.seek(
                                     Duration(seconds: val.toInt()),
                                   );
                                 },
@@ -597,7 +722,7 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
                             ),
                           ),
                           Text(
-                            _formatDuration(widget.controller.value.duration),
+                            _formatDuration(_duration),
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 12,
@@ -615,7 +740,6 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
                               'EPISÓDIOS',
                               widget.onShowEpisodes,
                             ),
-
                           _buildBottomAction(
                             Icons.aspect_ratio,
                             'Proporção..',
@@ -626,8 +750,6 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
                             'Velocidade..',
                             _showSpeedMenu,
                           ),
-
-                          // Subtitles button removed
                           if (widget.channel.type == 'series' ||
                               widget.channel.type == 'series_episode')
                             TextButton.icon(
@@ -697,32 +819,48 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
                             vertical: 10,
                           ),
                           children: [
-                            _buildSettingSection(
+                            // Video Tracks
+                            _buildSettingSection<VideoTrack>(
                               'Faixas de vídeo',
-                              _getVideoTracks(),
+                              widget.player.state.tracks.video
+                                  .where((t) => t.id != 'auto' && t.id != 'no')
+                                  .toList(),
                               _selectedVideoTrack,
-                              (idx) =>
-                                  setState(() => _selectedVideoTrack = idx),
+                              (track) => widget.player.setVideoTrack(track),
+                              (track) =>
+                                  '${track.id}: ${track.codec ?? "Unknown"} ${track.w != null ? "${track.w}x${track.h}" : ""} ${track.bitrate != null ? "${(track.bitrate! / 1000).round()}kb/s" : ""}',
                             ),
                             const Divider(color: Colors.white24),
 
-                            _buildSettingSection(
+                            // Audio Tracks
+                            _buildSettingSection<AudioTrack>(
                               'Faixas de áudio',
-                              _getAudioTracks(),
+                              widget.player.state.tracks.audio
+                                  .where((t) => t.id != 'auto' && t.id != 'no')
+                                  .toList(),
                               _selectedAudioTrack,
-                              (idx) =>
-                                  setState(() => _selectedAudioTrack = idx),
+                              (track) => widget.player.setAudioTrack(track),
+                              (track) =>
+                                  '${track.id}: ${track.language ?? "Unknown"} ${track.codec ?? ""} ${track.channels != null ? "${track.channels}ch" : ""} ${track.bitrate != null ? "${(track.bitrate! / 1000).round()}kb/s" : ""}',
                             ),
                             const Divider(color: Colors.white24),
 
-                            if (_getSubtitleTracks().isNotEmpty) ...[
-                              _buildSettingSection(
+                            // Subtitle Tracks
+                            if (widget.player.state.tracks.subtitle.any(
+                              (t) => t.id != 'auto' && t.id != 'no',
+                            )) ...[
+                              _buildSettingSection<SubtitleTrack>(
                                 'Faixas de legendas',
-                                _getSubtitleTracks(),
+                                widget.player.state.tracks.subtitle
+                                    .where(
+                                      (t) => t.id != 'auto' && t.id != 'no',
+                                    )
+                                    .toList(),
                                 _selectedSubtitleTrack,
-                                (idx) => setState(
-                                  () => _selectedSubtitleTrack = idx,
-                                ),
+                                (track) =>
+                                    widget.player.setSubtitleTrack(track),
+                                (track) =>
+                                    '${track.id}: ${track.language ?? "Unknown"} ${track.codec ?? ""} ${track.title ?? ""}',
                               ),
                               const Divider(color: Colors.white24),
                             ],
@@ -798,74 +936,11 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
       onTap: onTap,
       child: Row(
         children: [
-          Icon(icon, color: Colors.white, size: 20),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: const TextStyle(color: Colors.white, fontSize: 13),
-          ),
+          Icon(icon, color: Colors.white),
+          const SizedBox(width: 5),
+          Text(label, style: const TextStyle(color: Colors.white)),
         ],
       ),
-    );
-  }
-
-  Widget _buildSettingSection(
-    String title,
-    List<String> options,
-    int selectedIndex,
-    Function(int) onSelect,
-  ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 10, bottom: 6),
-          child: Row(
-            children: [
-              const Icon(Icons.video_settings, color: Colors.white, size: 20),
-              const SizedBox(width: 10),
-              Text(
-                title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-        ),
-        ...List.generate(options.length, (index) {
-          final isSelected = index == selectedIndex;
-          return InkWell(
-            onTap: () => onSelect(index),
-            child: Padding(
-              padding: const EdgeInsets.only(left: 20, bottom: 8, top: 4),
-              child: Row(
-                children: [
-                  Icon(
-                    isSelected
-                        ? Icons.radio_button_checked
-                        : Icons.radio_button_unchecked,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      options[index],
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }),
-      ],
     );
   }
 }

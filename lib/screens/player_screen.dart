@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:video_player/video_player.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -31,7 +32,9 @@ class PlayerScreen extends StatefulWidget {
 }
 
 class _PlayerScreenState extends State<PlayerScreen> {
-  VideoPlayerController? _videoPlayerController;
+  late final Player _player;
+  late final VideoController _videoController;
+
   bool _isError = false;
   String _errorMessage = '';
   double? _overrideAspectRatio;
@@ -45,29 +48,32 @@ class _PlayerScreenState extends State<PlayerScreen> {
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
     ]);
+
     _initializePlayer();
   }
 
   Future<void> _initializePlayer() async {
-    try {
-      _videoPlayerController = VideoPlayerController.networkUrl(
-        Uri.parse(widget.channel.streamUrl),
-        // Use default options
-        videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
-      );
+    // Create a Player instance
+    _player = Player();
 
-      await _videoPlayerController!.initialize();
-      _videoPlayerController!.play();
-      setState(() {});
-    } catch (e) {
-      debugPrint("Error initializing player: $e");
+    // Create a VideoController to handle video output from [Player]
+    _videoController = VideoController(_player);
+
+    // Play the media
+    await _player.open(Media(widget.channel.streamUrl));
+
+    // Listen for errors
+    _player.stream.error.listen((error) {
+      debugPrint("Player Error: $error");
       if (mounted) {
         setState(() {
           _isError = true;
-          _errorMessage = e.toString();
+          _errorMessage = error.toString();
         });
       }
-    }
+    });
+
+    setState(() {});
   }
 
   @override
@@ -80,7 +86,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       DeviceOrientation.landscapeRight,
     ]);
 
-    _videoPlayerController?.dispose();
+    _player.dispose();
     super.dispose();
   }
 
@@ -165,7 +171,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
       type: 'series_episode',
     );
 
-    // Replace current route for clean state reset
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
@@ -230,12 +235,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         return InkWell(
                           onTap: () {
                             Navigator.pop(context); // Close sheet
-                            if (!isPlaying)
+                            if (!isPlaying) {
                               _switchEpisode(
                                 index,
                                 widget.currentSeason!,
                                 widget.episodes!,
                               );
+                            }
                           },
                           child: Container(
                             padding: const EdgeInsets.all(8),
@@ -361,28 +367,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
       );
     }
 
-    if (_videoPlayerController == null ||
-        !_videoPlayerController!.value.isInitialized) {
-      return const Scaffold(
-        backgroundColor: Colors.black,
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.purpleAccent),
-              ),
-              SizedBox(height: 16),
-              Text(
-                'Carregando transmissão...',
-                style: TextStyle(color: Colors.white),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
@@ -391,15 +375,21 @@ class _PlayerScreenState extends State<PlayerScreen> {
           // Video Layer
           Center(
             child: AspectRatio(
-              aspectRatio:
-                  _overrideAspectRatio ??
-                  _videoPlayerController!.value.aspectRatio,
+              aspectRatio: _overrideAspectRatio ?? 16 / 9,
               child: FittedBox(
                 fit: _overrideFit,
                 child: SizedBox(
-                  width: _videoPlayerController!.value.size.width,
-                  height: _videoPlayerController!.value.size.height,
-                  child: VideoPlayer(_videoPlayerController!),
+                  width: MediaQuery.of(context).size.width,
+                  height:
+                      MediaQuery.of(context).size.width /
+                      (_overrideAspectRatio ?? 16 / 9),
+                  child: Video(
+                    controller: _videoController,
+                    controls: NoVideoControls,
+                    fit: _overrideFit == BoxFit.contain
+                        ? BoxFit.contain
+                        : BoxFit.cover,
+                  ),
                 ),
               ),
             ),
@@ -407,7 +397,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
           // Controls Layer
           VideoControlsOverlay(
-            controller: _videoPlayerController!,
+            player: _player,
             channel: widget.channel,
             onNextEpisode: _onNextEpisode,
             onShowEpisodes: _showEpisodesList,
