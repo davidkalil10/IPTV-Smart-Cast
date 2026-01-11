@@ -9,6 +9,7 @@ class VideoControlsOverlay extends StatefulWidget {
   final VoidCallback onNextEpisode;
   final VoidCallback onShowEpisodes;
   final Function(double ratio, BoxFit fit) onResize;
+  final Function(int size) onSubtitleSizeChanged;
 
   const VideoControlsOverlay({
     super.key,
@@ -17,6 +18,7 @@ class VideoControlsOverlay extends StatefulWidget {
     required this.onNextEpisode,
     required this.onShowEpisodes,
     required this.onResize,
+    required this.onSubtitleSizeChanged,
   });
 
   @override
@@ -912,6 +914,7 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
                                     onChanged: (v) {
                                       if (v != null) {
                                         setState(() => _subtitleFontSize = v);
+                                        widget.onSubtitleSizeChanged(v);
                                       }
                                     },
                                   ),

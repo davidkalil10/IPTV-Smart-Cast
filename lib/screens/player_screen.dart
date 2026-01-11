@@ -39,6 +39,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   String _errorMessage = '';
   double? _overrideAspectRatio;
   BoxFit _overrideFit = BoxFit.contain;
+  int _subtitleFontSize = 24;
 
   @override
   void initState() {
@@ -386,6 +387,17 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   child: Video(
                     controller: _videoController,
                     controls: NoVideoControls,
+                    subtitleViewConfiguration: SubtitleViewConfiguration(
+                      style: TextStyle(
+                        height: 1.4,
+                        fontSize: _subtitleFontSize.toDouble(),
+                        letterSpacing: 0.0,
+                        wordSpacing: 0.0,
+                        color: const Color(0xffffffff),
+                        fontWeight: FontWeight.normal,
+                        backgroundColor: const Color(0xaa000000),
+                      ),
+                    ),
                     fit: _overrideFit == BoxFit.contain
                         ? BoxFit.contain
                         : BoxFit.cover,
@@ -406,6 +418,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 _overrideAspectRatio = ratio > 0 ? ratio : null;
                 _overrideFit = fit;
               });
+            },
+            onSubtitleSizeChanged: (size) {
+              setState(() => _subtitleFontSize = size);
             },
           ),
         ],

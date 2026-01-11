@@ -544,19 +544,36 @@ class _ContentListScreenState extends State<ContentListScreen> {
                                     style: TextStyle(color: Colors.grey),
                                   ),
                                 )
-                              : GridView.builder(
-                                  padding: const EdgeInsets.all(16),
-                                  gridDelegate:
-                                      const SliverGridDelegateWithMaxCrossAxisExtent(
-                                        maxCrossAxisExtent: 130, // 5 items/row
-                                        childAspectRatio: 0.7,
-                                        crossAxisSpacing: 12,
-                                        mainAxisSpacing: 12,
-                                      ),
-                                  itemCount: displayedContent.length,
-                                  itemBuilder: (context, index) {
-                                    return ChannelGridItem(
-                                      channel: displayedContent[index],
+                              : LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    final width = constraints.maxWidth;
+                                    double maxExtent;
+
+                                    // Responsive Breakpoints
+                                    if (width < 600) {
+                                      maxExtent = 160; // Phone (3-ish columns)
+                                    } else if (width < 1200) {
+                                      maxExtent = 200; // Tablet (4-5 columns)
+                                    } else {
+                                      maxExtent =
+                                          260; // TV / Desktop (Large posters)
+                                    }
+
+                                    return GridView.builder(
+                                      padding: const EdgeInsets.all(16),
+                                      gridDelegate:
+                                          SliverGridDelegateWithMaxCrossAxisExtent(
+                                            maxCrossAxisExtent: maxExtent,
+                                            childAspectRatio: 0.65,
+                                            crossAxisSpacing: 16,
+                                            mainAxisSpacing: 16,
+                                          ),
+                                      itemCount: displayedContent.length,
+                                      itemBuilder: (context, index) {
+                                        return ChannelGridItem(
+                                          channel: displayedContent[index],
+                                        );
+                                      },
                                     );
                                   },
                                 ),
