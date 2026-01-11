@@ -1,13 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../models/channel.dart';
 import '../widgets/video_controls_overlay.dart';
+import '../providers/channel_provider.dart';
 
 class PlayerScreen extends StatefulWidget {
   final Channel channel;
+  final List<dynamic>? episodes;
+  final int? currentEpisodeIndex;
+  final String? currentSeason;
 
-  const PlayerScreen({super.key, required this.channel});
+  final List<String>? seasons;
+  final Map<String, dynamic>? allEpisodesMap;
+
+  const PlayerScreen({
+    super.key,
+    required this.channel,
+    this.episodes,
+    this.currentEpisodeIndex,
+    this.currentSeason,
+    this.seasons,
+    this.allEpisodesMap,
+  });
 
   @override
   State<PlayerScreen> createState() => _PlayerScreenState();
@@ -35,7 +52,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     try {
       _videoPlayerController = VideoPlayerController.networkUrl(
         Uri.parse(widget.channel.streamUrl),
-        // Use default options, mixWithOthers is good for audio focus but strictly not required for basic play
+        // Use default options
         videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
       );
 
@@ -55,7 +72,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   @override
   void dispose() {
-    // Restore orientations
+    // Restore orientations to default
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,
@@ -68,11 +85,241 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 
   void _onNextEpisode() {
-    // Placeholder for Next Episode logic
+    if (widget.episodes != null && widget.currentEpisodeIndex != null) {
+      // 1. Try Next Episode in Current Season
+      if (widget.currentEpisodeIndex! + 1 < widget.episodes!.length) {
+        _switchEpisode(
+          widget.currentEpisodeIndex! + 1,
+          widget.currentSeason!,
+          widget.episodes!,
+        );
+      }
+      // 2. Try Next Season
+      else if (widget.seasons != null &&
+          widget.allEpisodesMap != null &&
+          widget.currentSeason != null) {
+        final currentSeasonIndex = widget.seasons!.indexOf(
+          widget.currentSeason!,
+        );
+
+        if (currentSeasonIndex != -1 &&
+            currentSeasonIndex + 1 < widget.seasons!.length) {
+          // Found Next Season
+          final nextSeason = widget.seasons![currentSeasonIndex + 1];
+          final nextEpisodes =
+              widget.allEpisodesMap![nextSeason] as List<dynamic>;
+          if (nextEpisodes.isNotEmpty) {
+            _switchEpisode(0, nextSeason, nextEpisodes);
+          } else {
+            _showNoMoreEpisodesMsg();
+          }
+        }
+        // 3. Loop to Start (Season 1 Episode 1)
+        else if (widget.seasons!.isNotEmpty) {
+          final firstSeason = widget.seasons!.first;
+          final firstEpisodes =
+              widget.allEpisodesMap![firstSeason] as List<dynamic>;
+          if (firstEpisodes.isNotEmpty) {
+            _switchEpisode(0, firstSeason, firstEpisodes);
+          } else {
+            _showNoMoreEpisodesMsg();
+          }
+        } else {
+          _showNoMoreEpisodesMsg();
+        }
+      } else {
+        _showNoMoreEpisodesMsg();
+      }
+    } else {
+      _showNoMoreEpisodesMsg();
+    }
+  }
+
+  void _showNoMoreEpisodesMsg() {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Próximo episódio não disponível neste contexto."),
+      const SnackBar(content: Text("Não há mais episódios disponíveis.")),
+    );
+  }
+
+  void _switchEpisode(int index, String season, List<dynamic> episodeList) {
+    final ep = episodeList[index];
+    final provider = context.read<ChannelProvider>();
+    final baseUrl = provider.savedUrl ?? '';
+    final user = provider.savedUser ?? '';
+    final pass = provider.savedPass ?? '';
+    final ext = ep['container_extension'] ?? 'mp4';
+    final id = ep['id'].toString();
+
+    final url = '$baseUrl/series/$user/$pass/$id.$ext';
+
+    // Construct cleaner title
+    final epNum = ep['episode_num'] ?? '?';
+    final epName = 'S${season}E$epNum';
+
+    final newChannel = Channel(
+      id: id,
+      name: '${widget.channel.name.split(" - S").first} - $epName',
+      streamUrl: url,
+      logoUrl: ep['info']?['movie_image'] ?? widget.channel.logoUrl,
+      category: widget.channel.category,
+      type: 'series_episode',
+    );
+
+    // Replace current route for clean state reset
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PlayerScreen(
+          channel: newChannel,
+          episodes: episodeList,
+          currentEpisodeIndex: index,
+          currentSeason: season,
+          seasons: widget.seasons,
+          allEpisodesMap: widget.allEpisodesMap,
+        ),
       ),
+    );
+  }
+
+  void _showEpisodesList() {
+    if (widget.episodes == null || widget.episodes!.isEmpty) {
+      _showNoMoreEpisodesMsg();
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.5,
+          minChildSize: 0.3,
+          maxChildSize: 0.8,
+          builder: (_, scrollController) {
+            return Container(
+              color: Colors.grey[900],
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(width: 40, height: 4, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    "Episódios - Temporada ${widget.currentSeason}",
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Expanded(
+                    child: ListView.separated(
+                      controller: scrollController,
+                      itemCount: widget.episodes!.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (context, index) {
+                        final ep = widget.episodes![index];
+                        final isPlaying = index == widget.currentEpisodeIndex;
+                        final epTitle = ep['title'].toString();
+                        final epImg = ep['info']?['movie_image'] ?? '';
+
+                        return InkWell(
+                          onTap: () {
+                            Navigator.pop(context); // Close sheet
+                            if (!isPlaying)
+                              _switchEpisode(
+                                index,
+                                widget.currentSeason!,
+                                widget.episodes!,
+                              );
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: isPlaying
+                                  ? Colors.purple.withOpacity(0.2)
+                                  : Colors.black45,
+                              borderRadius: BorderRadius.circular(8),
+                              border: isPlaying
+                                  ? Border.all(color: Colors.purpleAccent)
+                                  : null,
+                            ),
+                            child: Row(
+                              children: [
+                                // Thumbnail
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: SizedBox(
+                                    width: 80,
+                                    height: 50,
+                                    child: CachedNetworkImage(
+                                      imageUrl: epImg,
+                                      fit: BoxFit.cover,
+                                      placeholder: (_, __) =>
+                                          Container(color: Colors.grey[800]),
+                                      errorWidget: (_, __, ___) => Container(
+                                        color: Colors.grey[800],
+                                        child: const Icon(
+                                          Icons.movie,
+                                          size: 20,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        epTitle,
+                                        style: TextStyle(
+                                          color: isPlaying
+                                              ? Colors.purpleAccent
+                                              : Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      if (ep['info']?['plot'] != null)
+                                        Text(
+                                          ep['info']['plot'].toString(),
+                                          style: const TextStyle(
+                                            color: Colors.grey,
+                                            fontSize: 11,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                                if (isPlaying)
+                                  const Icon(
+                                    Icons.equalizer,
+                                    color: Colors.purpleAccent,
+                                  ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -163,11 +410,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
             controller: _videoPlayerController!,
             channel: widget.channel,
             onNextEpisode: _onNextEpisode,
+            onShowEpisodes: _showEpisodesList,
             onResize: (ratio, fit) {
               setState(() {
-                _overrideAspectRatio = ratio > 0
-                    ? ratio
-                    : null; // If 0 or negative passed (e.g. for Fit Parent), might interpret as null or auto
+                _overrideAspectRatio = ratio > 0 ? ratio : null;
                 _overrideFit = fit;
               });
             },

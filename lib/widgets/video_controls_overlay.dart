@@ -7,6 +7,7 @@ class VideoControlsOverlay extends StatefulWidget {
   final VideoPlayerController controller;
   final Channel channel;
   final VoidCallback onNextEpisode;
+  final VoidCallback onShowEpisodes;
   final Function(double ratio, BoxFit fit) onResize;
 
   const VideoControlsOverlay({
@@ -14,6 +15,7 @@ class VideoControlsOverlay extends StatefulWidget {
     required this.controller,
     required this.channel,
     required this.onNextEpisode,
+    required this.onShowEpisodes,
     required this.onResize,
   });
 
@@ -45,6 +47,7 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
   int _selectedVideoTrack = 1;
   int _selectedAudioTrack = 1;
   int _selectedSubtitleTrack = 0; // Disabled by default
+  int _subtitleFontSize = 20;
 
   // Drag updates
   bool _isDraggingVolume = false;
@@ -181,42 +184,44 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
       ),
       builder: (context) {
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Padding(
-              padding: EdgeInsets.all(16.0),
-              child: Text(
-                'Velocidade de reprodução',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                  color: Colors.black,
+        return SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Text(
+                  'Velocidade de reprodução',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                    color: Colors.black,
+                  ),
                 ),
               ),
-            ),
-            const Divider(height: 1),
-            ...[0.75, 1.0, 1.25, 1.5, 1.75, 2.0].map((speed) {
-              return ListTile(
-                leading: Icon(
-                  widget.controller.value.playbackSpeed == speed
-                      ? Icons.radio_button_checked
-                      : Icons.radio_button_unchecked,
-                  color: Colors.grey[800],
-                ),
-                title: Text(
-                  '${speed == 1.0 ? "1x (Normal)" : "${speed}x"}',
-                  style: const TextStyle(color: Colors.black),
-                ),
-                onTap: () {
-                  widget.controller.setPlaybackSpeed(speed);
-                  Navigator.pop(context);
-                  setState(() {}); // Refresh UI
-                },
-              );
-            }),
-          ],
+              const Divider(height: 1),
+              ...[0.75, 1.0, 1.25, 1.5, 1.75, 2.0].map((speed) {
+                return ListTile(
+                  leading: Icon(
+                    widget.controller.value.playbackSpeed == speed
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_unchecked,
+                    color: Colors.grey[800],
+                  ),
+                  title: Text(
+                    '${speed == 1.0 ? "1x (Normal)" : "${speed}x"}',
+                    style: const TextStyle(color: Colors.black),
+                  ),
+                  onTap: () {
+                    widget.controller.setPlaybackSpeed(speed);
+                    Navigator.pop(context);
+                    setState(() {}); // Refresh UI
+                  },
+                );
+              }),
+            ],
+          ),
         );
       },
     );
@@ -251,8 +256,25 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
     return d.inHours > 0 ? '$hours:$minutes:$seconds' : '$minutes:$seconds';
   }
 
+  List<String> _getVideoTracks() {
+    // Return default if no tracks detected
+    return ['Padrão'];
+  }
+
+  List<String> _getAudioTracks() {
+    // Return default if no tracks detected
+    return ['Padrão'];
+  }
+
+  List<String> _getSubtitleTracks() {
+    // Subtitles can be empty if none exist
+    return [];
+  }
+
   @override
   Widget build(BuildContext context) {
+    // ... rest of build logic
+
     // We need to Apply Aspect Ratio to the *Parent* of this Overlay really, but since this Overlay sits ON TOP of the video,
     // we can't easily change the video's sizing from *inside* here without a callback or state lift.
     // However, typical pattern is the VideoPlayer is in the background.
@@ -591,7 +613,7 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
                             _buildBottomAction(
                               Icons.video_library,
                               'EPISÓDIOS',
-                              () {},
+                              widget.onShowEpisodes,
                             ),
 
                           _buildBottomAction(
@@ -677,10 +699,7 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
                           children: [
                             _buildSettingSection(
                               'Faixas de vídeo',
-                              [
-                                'Disable',
-                                '0, VIDEO, h264, 1920x1080 [SAR 1:1]',
-                              ],
+                              _getVideoTracks(),
                               _selectedVideoTrack,
                               (idx) =>
                                   setState(() => _selectedVideoTrack = idx),
@@ -689,25 +708,24 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
 
                             _buildSettingSection(
                               'Faixas de áudio',
-                              [
-                                'Disable',
-                                '1, AUDIO, aac, 129 kb/s, 48000 Hz, por',
-                                '2, AUDIO, aac, 129 kb/s, 48000 Hz, eng',
-                              ],
+                              _getAudioTracks(),
                               _selectedAudioTrack,
                               (idx) =>
                                   setState(() => _selectedAudioTrack = idx),
                             ),
                             const Divider(color: Colors.white24),
 
-                            _buildSettingSection(
-                              'Faixas de legendas',
-                              ['Disable', '3, TIMEDTEXT, por'],
-                              _selectedSubtitleTrack,
-                              (idx) =>
-                                  setState(() => _selectedSubtitleTrack = idx),
-                            ),
-                            const Divider(color: Colors.white24),
+                            if (_getSubtitleTracks().isNotEmpty) ...[
+                              _buildSettingSection(
+                                'Faixas de legendas',
+                                _getSubtitleTracks(),
+                                _selectedSubtitleTrack,
+                                (idx) => setState(
+                                  () => _selectedSubtitleTrack = idx,
+                                ),
+                              ),
+                              const Divider(color: Colors.white24),
+                            ],
 
                             const Padding(
                               padding: EdgeInsets.only(top: 10, bottom: 6),
@@ -741,7 +759,7 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
                                     style: TextStyle(color: Colors.white70),
                                   ),
                                   DropdownButton<int>(
-                                    value: 20,
+                                    value: _subtitleFontSize,
                                     dropdownColor: Colors.grey[900],
                                     underline: Container(),
                                     style: const TextStyle(color: Colors.white),
@@ -753,7 +771,11 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
                                           ),
                                         )
                                         .toList(),
-                                    onChanged: (v) {},
+                                    onChanged: (v) {
+                                      if (v != null) {
+                                        setState(() => _subtitleFontSize = v);
+                                      }
+                                    },
                                   ),
                                 ],
                               ),

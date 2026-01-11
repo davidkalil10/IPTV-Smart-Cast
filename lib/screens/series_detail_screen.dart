@@ -97,10 +97,25 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
       type: 'series_episode',
     );
 
+    // Calculate index in the current list
+    int currentIndex = -1;
+    List<dynamic> episodeList = [];
+    if (_selectedSeason != null && _episodesMap.containsKey(_selectedSeason)) {
+      episodeList = _episodesMap[_selectedSeason] as List<dynamic>;
+      currentIndex = episodeList.indexWhere((e) => e['id'].toString() == id);
+    }
+
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => PlayerScreen(channel: episodeChannel),
+        builder: (context) => PlayerScreen(
+          channel: episodeChannel,
+          episodes: episodeList,
+          currentEpisodeIndex: currentIndex,
+          currentSeason: _selectedSeason,
+          seasons: _seasons,
+          allEpisodesMap: _episodesMap,
+        ),
       ),
     );
   }
