@@ -126,7 +126,7 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
     return null;
   }
 
-  void _playEpisode(Map<String, dynamic> episode) {
+  void _playEpisode(Map<String, dynamic> episode, {Duration? startPosition}) {
     final provider = context.read<ChannelProvider>();
 
     final baseUrl = provider.savedUrl ?? '';
@@ -186,6 +186,8 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
           allEpisodesMap: _episodesMap,
 
           seriesId: widget.channel.id,
+
+          startPosition: startPosition,
         ),
       ),
     );
@@ -551,10 +553,21 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                                                             ),
 
                                                         child: ElevatedButton.icon(
-                                                          onPressed: () =>
-                                                              _playEpisode(
-                                                                resumeEp,
-                                                              ),
+                                                          onPressed: () {
+                                                            final p =
+                                                                PlaybackService()
+                                                                    .getProgress(
+                                                                      _resumeEpisodeId!,
+                                                                    );
+                                                            _playEpisode(
+                                                              resumeEp,
+                                                              startPosition:
+                                                                  Duration(
+                                                                    seconds: p
+                                                                        .toInt(),
+                                                                  ),
+                                                            );
+                                                          },
 
                                                           icon: const Icon(
                                                             Icons.history,
