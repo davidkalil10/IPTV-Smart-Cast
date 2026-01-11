@@ -3,20 +3,47 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import 'home_screen.dart';
 import 'user_selection_screen.dart';
+import '../models/user_profile.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  final UserProfile? userToEdit;
+
+  const LoginScreen({super.key, this.userToEdit});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _nameController = TextEditingController();
-  final _urlController = TextEditingController();
-  final _userController = TextEditingController();
-  final _passController = TextEditingController();
+  late TextEditingController _nameController;
+  late TextEditingController _urlController;
+  late TextEditingController _userController;
+  late TextEditingController _passController;
   bool _isPasswordVisible = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(
+      text: widget.userToEdit?.name ?? '',
+    );
+    _urlController = TextEditingController(text: widget.userToEdit?.url ?? '');
+    _userController = TextEditingController(
+      text: widget.userToEdit?.username ?? '',
+    );
+    _passController = TextEditingController(
+      text: widget.userToEdit?.password ?? '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _urlController.dispose();
+    _userController.dispose();
+    _passController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -140,7 +167,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             Text(
-                              'Insira seus detalhes de login',
+                              widget.userToEdit != null
+                                  ? 'Editar Usuário'
+                                  : 'Insira seus detalhes de login',
                               style: TextStyle(
                                 fontSize: titleSize,
                                 fontWeight: FontWeight.bold,
@@ -199,7 +228,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                                 onPressed: _handleLogin,
                                 child: Text(
-                                  'ENTRAR',
+                                  widget.userToEdit != null ||
+                                          (widget.userToEdit?.id != null)
+                                      ? 'SALVAR'
+                                      : 'ENTRAR',
                                   style: TextStyle(
                                     fontSize: isSmallScreen ? 14 : 16,
                                     fontWeight: FontWeight.bold,
@@ -278,6 +310,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _urlController.text,
       _userController.text,
       _passController.text,
+      userIdToUpdate: widget.userToEdit?.id,
     );
 
     if (success && mounted) {

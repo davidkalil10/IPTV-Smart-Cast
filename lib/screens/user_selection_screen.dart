@@ -243,6 +243,20 @@ class UserSelectionScreen extends StatelessWidget {
                   ),
                 ),
 
+                // Edit Button
+                IconButton(
+                  icon: const Icon(Icons.edit_outlined, color: Colors.white70),
+                  onPressed: () {
+                    // Navigate to Edit Mode
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => LoginScreen(userToEdit: user),
+                      ),
+                    );
+                  },
+                ),
+
                 // Delete Button
                 IconButton(
                   icon: const Icon(

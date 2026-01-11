@@ -43,7 +43,13 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<bool> login(String name, String url, String user, String pass) async {
+  Future<bool> login(
+    String name,
+    String url,
+    String user,
+    String pass, {
+    String? userIdToUpdate,
+  }) async {
     _isLoading = true;
     notifyListeners();
 
@@ -55,11 +61,16 @@ class AuthProvider with ChangeNotifier {
         final expiry = data['user_info']['exp_date'] != null
             ? DateTime.fromMillisecondsSinceEpoch(
                 int.parse(data['user_info']['exp_date']) * 1000,
+                isUtc: true,
               )
             : null;
 
+        // Use existing ID if updating, otherwise generate new
+        final id =
+            userIdToUpdate ?? DateTime.now().millisecondsSinceEpoch.toString();
+
         final newUser = UserProfile(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          id: id,
           name: name,
           url: url,
           username: user,
@@ -67,7 +78,19 @@ class AuthProvider with ChangeNotifier {
           expiryDate: expiry,
         );
 
-        _users.add(newUser);
+        if (userIdToUpdate != null) {
+          // Update existing
+          final index = _users.indexWhere((u) => u.id == userIdToUpdate);
+          if (index != -1) {
+            _users[index] = newUser;
+          } else {
+            _users.add(newUser);
+          }
+        } else {
+          // Add new
+          _users.add(newUser);
+        }
+
         _currentUser = newUser;
         await _saveUsers();
         await _saveLastUser(newUser.id); // Save as last user
