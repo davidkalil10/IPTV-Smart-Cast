@@ -39,7 +39,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   String _errorMessage = '';
   double? _overrideAspectRatio;
   BoxFit _overrideFit = BoxFit.contain;
-  int _subtitleFontSize = 24;
+  int _subtitleFontSize = 48;
 
   @override
   void initState() {
@@ -79,10 +79,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   @override
   void dispose() {
-    // Restore orientations to default
+    // Enforce landscape even on dispose, just to be safe
     SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
     ]);

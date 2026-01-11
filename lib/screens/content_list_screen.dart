@@ -7,11 +7,19 @@ import '../widgets/channel_grid_item.dart';
 
 enum SortOption { defaultSort, topAdded, az, za }
 
-class ContentListScreen extends StatefulWidget {
-  final String type; // 'live', 'movie', 'series'
-  final String title;
+enum ContentType { live, movie, series }
 
-  const ContentListScreen({super.key, required this.type, required this.title});
+class ContentListScreen extends StatefulWidget {
+  final ContentType type;
+  final String title;
+  final bool forceRefresh;
+
+  const ContentListScreen({
+    super.key,
+    required this.type,
+    required this.title,
+    this.forceRefresh = false,
+  });
 
   @override
   State<ContentListScreen> createState() => _ContentListScreenState();
@@ -50,12 +58,27 @@ class _ContentListScreenState extends State<ContentListScreen> {
     final user = auth.currentUser;
 
     if (user != null) {
-      if (widget.type == 'live') {
-        provider.loadXtream(user.url, user.username, user.password);
-      } else if (widget.type == 'movie') {
-        provider.loadVod(user.url, user.username, user.password);
-      } else if (widget.type == 'series') {
-        provider.loadSeries(user.url, user.username, user.password);
+      if (widget.type == ContentType.live) {
+        provider.loadXtream(
+          user.url,
+          user.username,
+          user.password,
+          forceRefresh: widget.forceRefresh,
+        );
+      } else if (widget.type == ContentType.movie) {
+        provider.loadVod(
+          user.url,
+          user.username,
+          user.password,
+          forceRefresh: widget.forceRefresh,
+        );
+      } else if (widget.type == ContentType.series) {
+        provider.loadSeries(
+          user.url,
+          user.username,
+          user.password,
+          forceRefresh: widget.forceRefresh,
+        );
       }
     }
   }
@@ -252,337 +275,388 @@ class _ContentListScreenState extends State<ContentListScreen> {
 
             final displayedContent = _getFilteredChannels(provider.channels);
 
-            return Row(
-              children: [
-                // Left Sidebar (Categories)
-                Container(
-                  width: 300,
-                  color: const Color(0xFF101010),
-                  child: Column(
-                    children: [
-                      // Header Left
-                      Container(
-                        height: 60,
-                        color: const Color(0xFF101010),
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        alignment: Alignment.centerLeft,
-                        child: Row(
-                          children: [
-                            IconButton(
-                              icon: const Icon(
-                                Icons.arrow_back,
-                                color: Colors.white,
-                              ),
-                              onPressed: () => Navigator.pop(context),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                widget.title.toUpperCase(),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                final totalWidth = constraints.maxWidth;
+                // If screen is "small" (like mobile landscape), reduce sidebar width
+                final bool isMobile = totalWidth < 900;
+                final double sidebarWidth = isMobile ? 250.0 : 300.0;
 
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12.0,
-                          vertical: 8.0,
-                        ),
-                        child: TextField(
-                          controller: _categorySearchController,
-                          style: const TextStyle(color: Colors.white),
-                          decoration: InputDecoration(
-                            hintText: 'Pesquisa em categorias',
-                            hintStyle: TextStyle(color: Colors.grey[400]),
-                            prefixIcon: const Icon(
-                              Icons.search,
-                              color: Colors.grey,
-                            ),
-                            filled: true,
-                            fillColor: Colors.grey[850],
-                            isDense: true,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(4),
-                              borderSide: BorderSide.none,
-                            ),
-                          ),
-                          onChanged: (value) =>
-                              setState(() => _categorySearchQuery = value),
-                        ),
-                      ),
-
-                      Expanded(
-                        child: ListView.separated(
-                          itemCount: filteredCategories.length,
-                          separatorBuilder: (context, index) =>
-                              Divider(height: 1, color: Colors.grey[800]),
-                          itemBuilder: (context, index) {
-                            final category = filteredCategories[index];
-                            final isSelected = category == _selectedCategory;
-
-                            int count = 0;
-                            if (category == 'FAVORITOS') {
-                              count = provider.channels
-                                  .where((c) => c.isFavorite)
-                                  .length;
-                            } else if (category == 'TODOS') {
-                              count = provider.channels.length;
-                            } else {
-                              count = provider.channels
-                                  .where((c) => c.category == category)
-                                  .length;
-                            }
-
-                            return Container(
-                              color: isSelected
-                                  ? const Color(0xFF00838F)
-                                  : Colors
-                                        .transparent, // Cyan 800 for selection
-                              child: ListTile(
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 0,
-                                ),
-                                title: Text(
-                                  category,
-                                  style: TextStyle(
-                                    color: isSelected
-                                        ? Colors.white
-                                        : Colors.grey[300],
-                                    fontWeight: isSelected
-                                        ? FontWeight.bold
-                                        : FontWeight.normal,
-                                    fontSize: 14,
+                return Row(
+                  children: [
+                    // Left Sidebar (Categories)
+                    Container(
+                      width: sidebarWidth,
+                      color: const Color(0xFF101010),
+                      child: Column(
+                        children: [
+                          // Header Left
+                          Container(
+                            height: 60,
+                            color: const Color(0xFF101010),
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            alignment: Alignment.centerLeft,
+                            child: Row(
+                              children: [
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.arrow_back,
+                                    color: Colors.white,
                                   ),
+                                  onPressed: () => Navigator.pop(context),
                                 ),
-                                trailing: Text(
-                                  '$count',
-                                  style: TextStyle(
-                                    color: isSelected
-                                        ? Colors.white
-                                        : Colors.grey[600],
-                                    fontSize: 12,
-                                  ),
-                                ),
-                                selected: isSelected,
-                                onTap: () => setState(
-                                  () => _selectedCategory = category,
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Right Content (Grid)
-                Expanded(
-                  child: Container(
-                    color: Colors.black,
-                    child: Column(
-                      children: [
-                        // Header Right
-                        Container(
-                          height: 60,
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          decoration: BoxDecoration(
-                            border: Border(
-                              bottom: BorderSide(color: Colors.grey[800]!),
-                            ),
-                          ),
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              // Centered Title
-                              if (!_isContentSearchVisible)
-                                Center(
+                                const SizedBox(width: 8),
+                                Expanded(
                                   child: Text(
-                                    _selectedCategory.toUpperCase(),
+                                    widget.title.toUpperCase(),
                                     style: const TextStyle(
                                       color: Colors.white,
                                       fontSize: 18,
                                       fontWeight: FontWeight.bold,
                                     ),
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
+                              ],
+                            ),
+                          ),
 
-                              // Right Actions
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.end,
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12.0,
+                              vertical: 8.0,
+                            ),
+                            child: TextField(
+                              controller: _categorySearchController,
+                              style: const TextStyle(color: Colors.white),
+                              decoration: InputDecoration(
+                                hintText: 'Pesquisa...',
+                                hintStyle: TextStyle(
+                                  color: Colors.grey[400],
+                                  fontSize: 13,
+                                ),
+                                prefixIcon: const Icon(
+                                  Icons.search,
+                                  color: Colors.grey,
+                                  size: 20,
+                                ),
+                                prefixIconConstraints: const BoxConstraints(
+                                  minWidth: 36,
+                                  minHeight: 40,
+                                ),
+                                isDense: true,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  vertical: 10,
+                                  horizontal: 8,
+                                ),
+                                filled: true,
+                                fillColor: Colors.grey[850],
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(4),
+                                  borderSide: BorderSide.none,
+                                ),
+                              ),
+                              onChanged: (value) =>
+                                  setState(() => _categorySearchQuery = value),
+                            ),
+                          ),
+
+                          Expanded(
+                            child: ListView.separated(
+                              itemCount: filteredCategories.length,
+                              separatorBuilder: (context, index) =>
+                                  Divider(height: 1, color: Colors.grey[800]),
+                              itemBuilder: (context, index) {
+                                final category = filteredCategories[index];
+                                final isSelected =
+                                    category == _selectedCategory;
+
+                                int count = 0;
+                                if (category == 'FAVORITOS') {
+                                  count = provider.channels
+                                      .where((c) => c.isFavorite)
+                                      .length;
+                                } else if (category == 'TODOS') {
+                                  count = provider.channels.length;
+                                } else {
+                                  count = provider.channels
+                                      .where((c) => c.category == category)
+                                      .length;
+                                }
+
+                                return Container(
+                                  color: isSelected
+                                      ? const Color(0xFF00838F)
+                                      : Colors
+                                            .transparent, // Cyan 800 for selection
+                                  child: ListTile(
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 0,
+                                    ),
+                                    title: Text(
+                                      category,
+                                      style: TextStyle(
+                                        color: isSelected
+                                            ? Colors.white
+                                            : Colors.grey[300],
+                                        fontWeight: isSelected
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    trailing: Text(
+                                      '$count',
+                                      style: TextStyle(
+                                        color: isSelected
+                                            ? Colors.white
+                                            : Colors.grey[600],
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                    selected: isSelected,
+                                    onTap: () => setState(
+                                      () => _selectedCategory = category,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Right Content (Grid)
+                    Expanded(
+                      child: Container(
+                        color: Colors.black,
+                        child: Column(
+                          children: [
+                            // Header Right
+                            Container(
+                              height: 60,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                              ),
+                              decoration: BoxDecoration(
+                                border: Border(
+                                  bottom: BorderSide(color: Colors.grey[800]!),
+                                ),
+                              ),
+                              child: Stack(
+                                alignment: Alignment.center,
                                 children: [
-                                  if (_isContentSearchVisible)
-                                    Expanded(
-                                      child: TextField(
-                                        controller: _contentSearchController,
-                                        autofocus: true,
+                                  // Centered Title
+                                  if (!_isContentSearchVisible)
+                                    Center(
+                                      child: Text(
+                                        _selectedCategory.toUpperCase(),
                                         style: const TextStyle(
                                           color: Colors.white,
-                                          fontSize: 16,
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
                                         ),
-                                        decoration: InputDecoration(
-                                          hintText:
-                                              'Procurar ${_selectedCategory}...',
-                                          hintStyle: const TextStyle(
-                                            color: Colors.grey,
+                                      ),
+                                    ),
+
+                                  // Right Actions
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      if (_isContentSearchVisible)
+                                        Expanded(
+                                          child: TextField(
+                                            controller:
+                                                _contentSearchController,
+                                            autofocus: true,
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 16,
+                                            ),
+                                            decoration: InputDecoration(
+                                              hintText:
+                                                  'Procurar ${_selectedCategory}...',
+                                              hintStyle: const TextStyle(
+                                                color: Colors.grey,
+                                              ),
+                                              border: InputBorder.none,
+                                              prefixIcon: const Icon(
+                                                Icons.search,
+                                                color: Colors.grey,
+                                              ),
+                                            ),
+                                            onChanged: (value) => setState(
+                                              () => _contentSearchQuery = value,
+                                            ),
                                           ),
-                                          border: InputBorder.none,
-                                          prefixIcon: const Icon(
+                                        ),
+
+                                      if (!_isContentSearchVisible)
+                                        IconButton(
+                                          icon: const Icon(
                                             Icons.search,
-                                            color: Colors.grey,
+                                            size: 28,
+                                            color: Colors.white,
+                                          ),
+                                          onPressed: () => setState(
+                                            () =>
+                                                _isContentSearchVisible = true,
                                           ),
                                         ),
-                                        onChanged: (value) => setState(
-                                          () => _contentSearchQuery = value,
+
+                                      if (_isContentSearchVisible)
+                                        IconButton(
+                                          icon: const Icon(
+                                            Icons.close,
+                                            color: Colors.white,
+                                          ),
+                                          onPressed: () {
+                                            setState(() {
+                                              _contentSearchQuery = '';
+                                              _contentSearchController.clear();
+                                              _isContentSearchVisible = false;
+                                            });
+                                          },
                                         ),
-                                      ),
-                                    ),
 
-                                  if (!_isContentSearchVisible)
-                                    IconButton(
-                                      icon: const Icon(
-                                        Icons.search,
-                                        size: 28,
-                                        color: Colors.white,
-                                      ),
-                                      onPressed: () => setState(
-                                        () => _isContentSearchVisible = true,
-                                      ),
-                                    ),
+                                      const SizedBox(width: 8),
 
-                                  if (_isContentSearchVisible)
-                                    IconButton(
-                                      icon: const Icon(
-                                        Icons.close,
-                                        color: Colors.white,
-                                      ),
-                                      onPressed: () {
-                                        setState(() {
-                                          _contentSearchQuery = '';
-                                          _contentSearchController.clear();
-                                          _isContentSearchVisible = false;
-                                        });
-                                      },
-                                    ),
-
-                                  const SizedBox(width: 8),
-
-                                  PopupMenuButton<String>(
-                                    icon: const Icon(
-                                      Icons.more_vert,
-                                      size: 28,
-                                      color: Colors.white,
-                                    ),
-                                    color: Colors.grey[900],
-                                    onSelected: (value) {
-                                      if (value == 'refresh') {
-                                        _loadContent();
-                                      } else if (value == 'sort') {
-                                        _showSortDialog();
-                                      }
-                                    },
-                                    itemBuilder: (context) => [
-                                      const PopupMenuItem(
-                                        value: 'sort',
-                                        child: Row(
-                                          children: [
-                                            Icon(
-                                              Icons.sort,
-                                              color: Colors.white,
-                                            ),
-                                            SizedBox(width: 10),
-                                            Text(
-                                              'Ordenar',
-                                              style: TextStyle(
-                                                color: Colors.white,
-                                              ),
-                                            ),
-                                          ],
+                                      PopupMenuButton<String>(
+                                        icon: const Icon(
+                                          Icons.more_vert,
+                                          size: 28,
+                                          color: Colors.white,
                                         ),
-                                      ),
-                                      const PopupMenuItem(
-                                        value: 'refresh',
-                                        child: Row(
-                                          children: [
-                                            Icon(
-                                              Icons.refresh,
-                                              color: Colors.white,
+                                        color: Colors.grey[900],
+                                        onSelected: (value) {
+                                          if (value == 'refresh') {
+                                            // Force refresh when manually clicking refresh in the list
+                                            final auth = context
+                                                .read<AuthProvider>();
+                                            final provider = context
+                                                .read<ChannelProvider>();
+                                            final user = auth.currentUser;
+
+                                            if (user != null) {
+                                              if (widget.type ==
+                                                  ContentType.live) {
+                                                provider.loadXtream(
+                                                  user.url,
+                                                  user.username,
+                                                  user.password,
+                                                  forceRefresh: true,
+                                                );
+                                              } else if (widget.type ==
+                                                  ContentType.movie) {
+                                                provider.loadVod(
+                                                  user.url,
+                                                  user.username,
+                                                  user.password,
+                                                  forceRefresh: true,
+                                                );
+                                              } else if (widget.type ==
+                                                  ContentType.series) {
+                                                provider.loadSeries(
+                                                  user.url,
+                                                  user.username,
+                                                  user.password,
+                                                  forceRefresh: true,
+                                                );
+                                              }
+                                            }
+                                          } else if (value == 'sort') {
+                                            _showSortDialog();
+                                          }
+                                        },
+                                        itemBuilder: (context) => [
+                                          const PopupMenuItem(
+                                            value: 'sort',
+                                            child: Row(
+                                              children: [
+                                                Icon(
+                                                  Icons.sort,
+                                                  color: Colors.white,
+                                                ),
+                                                SizedBox(width: 10),
+                                                Text(
+                                                  'Ordenar',
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                  ),
+                                                ),
+                                              ],
                                             ),
-                                            SizedBox(width: 10),
-                                            Text(
-                                              'Atualizar Lista',
-                                              style: TextStyle(
-                                                color: Colors.white,
-                                              ),
+                                          ),
+                                          const PopupMenuItem(
+                                            value: 'refresh',
+                                            child: Row(
+                                              children: [
+                                                Icon(
+                                                  Icons.refresh,
+                                                  color: Colors.white,
+                                                ),
+                                                SizedBox(width: 10),
+                                                Text(
+                                                  'Atualizar Lista',
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                  ),
+                                                ),
+                                              ],
                                             ),
-                                          ],
-                                        ),
+                                          ),
+                                        ],
                                       ),
                                     ],
                                   ),
                                 ],
                               ),
-                            ],
-                          ),
-                        ),
+                            ),
 
-                        // Grid
-                        Expanded(
-                          child: displayedContent.isEmpty
-                              ? const Center(
-                                  child: Text(
-                                    'Nenhum conteúdo',
-                                    style: TextStyle(color: Colors.grey),
-                                  ),
-                                )
-                              : LayoutBuilder(
-                                  builder: (context, constraints) {
-                                    final width = constraints.maxWidth;
-                                    double maxExtent;
+                            // Grid
+                            Expanded(
+                              child: displayedContent.isEmpty
+                                  ? const Center(
+                                      child: Text(
+                                        'Nenhum conteúdo',
+                                        style: TextStyle(color: Colors.grey),
+                                      ),
+                                    )
+                                  : LayoutBuilder(
+                                      builder: (context, constraints) {
+                                        // Force 5 columns even on mobile as requested
+                                        // The user says "3 instead of 5" on mobile, meaning they want 5.
+                                        int crossAxisCount = 5;
 
-                                    // Responsive Breakpoints
-                                    if (width < 600) {
-                                      maxExtent = 160; // Phone (3-ish columns)
-                                    } else if (width < 1200) {
-                                      maxExtent = 200; // Tablet (4-5 columns)
-                                    } else {
-                                      maxExtent =
-                                          260; // TV / Desktop (Large posters)
-                                    }
-
-                                    return GridView.builder(
-                                      padding: const EdgeInsets.all(16),
-                                      gridDelegate:
-                                          SliverGridDelegateWithMaxCrossAxisExtent(
-                                            maxCrossAxisExtent: maxExtent,
-                                            childAspectRatio: 0.65,
-                                            crossAxisSpacing: 16,
-                                            mainAxisSpacing: 16,
-                                          ),
-                                      itemCount: displayedContent.length,
-                                      itemBuilder: (context, index) {
-                                        return ChannelGridItem(
-                                          channel: displayedContent[index],
+                                        return GridView.builder(
+                                          padding: const EdgeInsets.all(8),
+                                          gridDelegate:
+                                              SliverGridDelegateWithFixedCrossAxisCount(
+                                                crossAxisCount: crossAxisCount,
+                                                childAspectRatio:
+                                                    0.70, // Slightly taller aspect ratio since width is tighter
+                                                crossAxisSpacing: 8,
+                                                mainAxisSpacing: 8,
+                                              ),
+                                          itemCount: displayedContent.length,
+                                          itemBuilder: (context, index) {
+                                            return ChannelGridItem(
+                                              channel: displayedContent[index],
+                                            );
+                                          },
                                         );
                                       },
-                                    );
-                                  },
-                                ),
+                                    ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
-                  ),
-                ),
-              ],
+                  ],
+                );
+              },
             );
           },
         ),

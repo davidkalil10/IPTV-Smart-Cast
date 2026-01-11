@@ -21,7 +21,22 @@ class AuthProvider with ChangeNotifier {
   Future<void> loadUsers() async {
     final prefs = await SharedPreferences.getInstance();
     final usersJson = prefs.getStringList('user_profiles') ?? [];
-    _users = usersJson.map((u) => UserProfile.fromJson(json.decode(u))).toList();
+    _users = usersJson
+        .map((u) => UserProfile.fromJson(json.decode(u)))
+        .toList();
+
+    // Auto-login logic
+    final lastUserId = prefs.getString('last_user_id');
+    if (lastUserId != null && _users.isNotEmpty) {
+      try {
+        final lastUser = _users.firstWhere((u) => u.id == lastUserId);
+        _currentUser = lastUser;
+      } catch (e) {
+        // User not found (maybe deleted)
+        await prefs.remove('last_user_id');
+      }
+    }
+
     notifyListeners();
   }
 
@@ -31,13 +46,15 @@ class AuthProvider with ChangeNotifier {
 
     try {
       final data = await _service.loginXtream(url, user, pass);
-      print("vamos ver: " + data.toString() );
-      print("vamos ver: " + data['user_info']['auth'].toString() );
+      print("vamos ver: " + data.toString());
+      print("vamos ver: " + data['user_info']['auth'].toString());
       if (data['user_info']['auth'] == 1) {
-        final expiry = data['user_info']['exp_date'] != null 
-            ? DateTime.fromMillisecondsSinceEpoch(int.parse(data['user_info']['exp_date']) * 1000)
+        final expiry = data['user_info']['exp_date'] != null
+            ? DateTime.fromMillisecondsSinceEpoch(
+                int.parse(data['user_info']['exp_date']) * 1000,
+              )
             : null;
-            
+
         final newUser = UserProfile(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
           name: name,
@@ -50,6 +67,7 @@ class AuthProvider with ChangeNotifier {
         _users.add(newUser);
         _currentUser = newUser;
         await _saveUsers();
+        await _saveLastUser(newUser.id); // Save as last user
         _isLoading = false;
         notifyListeners();
         return true;
@@ -67,11 +85,14 @@ class AuthProvider with ChangeNotifier {
 
   Future<void> selectUser(UserProfile user) async {
     _currentUser = user;
+    await _saveLastUser(user.id);
     notifyListeners();
   }
 
   Future<void> logout() async {
     _currentUser = null;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('last_user_id');
     notifyListeners();
   }
 
@@ -85,5 +106,10 @@ class AuthProvider with ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     final usersJson = _users.map((u) => json.encode(u.toJson())).toList();
     await prefs.setStringList('user_profiles', usersJson);
+  }
+
+  Future<void> _saveLastUser(String id) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('last_user_id', id);
   }
 }

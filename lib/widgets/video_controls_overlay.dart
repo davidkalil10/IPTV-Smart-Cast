@@ -51,7 +51,7 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
   SubtitleTrack? _selectedSubtitleTrack;
 
   // Subtitle Settings
-  int _subtitleFontSize = 20;
+  int _subtitleFontSize = 48;
 
   // Drag updates
   bool _isDraggingVolume = false;
@@ -903,7 +903,7 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
                                     dropdownColor: Colors.grey[900],
                                     underline: Container(),
                                     style: const TextStyle(color: Colors.white),
-                                    items: [20, 24, 28, 32]
+                                    items: [20, 24, 28, 32, 36, 40, 48, 56, 64]
                                         .map(
                                           (e) => DropdownMenuItem(
                                             value: e,

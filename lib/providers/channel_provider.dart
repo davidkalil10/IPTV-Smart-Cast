@@ -13,6 +13,20 @@ class ChannelProvider with ChangeNotifier {
   String? _savedPass;
   bool _isXtream = false;
 
+  // Cache separate lists
+  List<Channel> _cachedLive = [];
+  List<Channel> _cachedMovies = [];
+  List<Channel> _cachedSeries = [];
+
+  // Timestamps
+  DateTime? _lastLiveUpdate;
+  DateTime? _lastMovieUpdate;
+  DateTime? _lastSeriesUpdate;
+
+  DateTime? get lastLiveUpdate => _lastLiveUpdate;
+  DateTime? get lastMovieUpdate => _lastMovieUpdate;
+  DateTime? get lastSeriesUpdate => _lastSeriesUpdate;
+
   Map<String, String> _categoryMap = {};
   Set<String> _favoriteIds = {};
 
@@ -103,7 +117,19 @@ class ChannelProvider with ChangeNotifier {
     }
   }
 
-  Future<void> loadXtream(String url, String user, String pass) async {
+  Future<void> loadXtream(
+    String url,
+    String user,
+    String pass, {
+    bool forceRefresh = false,
+  }) async {
+    // If not forced and we have cache, use it (assumes caller checked staleness if they cared)
+    if (!forceRefresh && _cachedLive.isNotEmpty) {
+      _channels = _cachedLive;
+      notifyListeners();
+      return;
+    }
+
     _isLoading = true;
     _error = null;
     notifyListeners();
@@ -118,7 +144,9 @@ class ChannelProvider with ChangeNotifier {
         _updateCategoryMap(categories);
 
         final streams = await _service.fetchLiveStreams(url, user, pass);
-        _channels = _mapChannelsWithCategoriesAndFavorites(streams);
+        _cachedLive = _mapChannelsWithCategoriesAndFavorites(streams);
+        _channels = _cachedLive;
+        _lastLiveUpdate = DateTime.now();
 
         print('✅ Streams ao vivo carregados. Total: ${_channels.length}');
       } else {
@@ -135,7 +163,18 @@ class ChannelProvider with ChangeNotifier {
     }
   }
 
-  Future<void> loadVod(String url, String user, String pass) async {
+  Future<void> loadVod(
+    String url,
+    String user,
+    String pass, {
+    bool forceRefresh = false,
+  }) async {
+    if (!forceRefresh && _cachedMovies.isNotEmpty) {
+      _channels = _cachedMovies;
+      notifyListeners();
+      return;
+    }
+
     _isLoading = true;
     _error = null;
     notifyListeners();
@@ -150,7 +189,9 @@ class ChannelProvider with ChangeNotifier {
         _updateCategoryMap(categories);
 
         final streams = await _service.fetchVodStreams(url, user, pass);
-        _channels = _mapChannelsWithCategoriesAndFavorites(streams);
+        _cachedMovies = _mapChannelsWithCategoriesAndFavorites(streams);
+        _channels = _cachedMovies;
+        _lastMovieUpdate = DateTime.now();
 
         print('✅ Filmes carregados. Total: ${_channels.length}');
       } else {
@@ -167,7 +208,18 @@ class ChannelProvider with ChangeNotifier {
     }
   }
 
-  Future<void> loadSeries(String url, String user, String pass) async {
+  Future<void> loadSeries(
+    String url,
+    String user,
+    String pass, {
+    bool forceRefresh = false,
+  }) async {
+    if (!forceRefresh && _cachedSeries.isNotEmpty) {
+      _channels = _cachedSeries;
+      notifyListeners();
+      return;
+    }
+
     _isLoading = true;
     _error = null;
     notifyListeners();
@@ -186,7 +238,9 @@ class ChannelProvider with ChangeNotifier {
         _updateCategoryMap(categories);
 
         final streams = await _service.fetchSeries(url, user, pass);
-        _channels = _mapChannelsWithCategoriesAndFavorites(streams);
+        _cachedSeries = _mapChannelsWithCategoriesAndFavorites(streams);
+        _channels = _cachedSeries;
+        _lastSeriesUpdate = DateTime.now();
 
         print('✅ Séries carregadas. Total: ${_channels.length}');
       } else {
@@ -200,6 +254,61 @@ class ChannelProvider with ChangeNotifier {
     } finally {
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  // Check if updates are needed (older than 1 day) and refresh separately
+  Future<void> checkAndBackgroundRefresh() async {
+    if (_savedUrl == null || _savedUser == null || _savedPass == null) return;
+
+    final now = DateTime.now();
+    const oneDay = Duration(days: 1);
+
+    // We won't block UI with _isLoading here, maybe just update silently or handle specifically?
+    // Since the user wants "Content to be updated upon opening home screen if > 1 day",
+    // we can just clear the cache for those items, forcing the next click/load to refresh.
+    // Or we can actively fetch. Actively fetching 3 types might be heavy.
+    // Let's clear cache if expired, so the user sees "Updated: [Old Date]" until they click?
+    // No, "ao abrir a home screen o conteudo deve ser atualizado".
+    // This implies an active update.
+
+    // Let's implement active refresh for stale content.
+    bool needsRefresh = false;
+    if (_lastLiveUpdate == null || now.difference(_lastLiveUpdate!) > oneDay)
+      needsRefresh = true;
+    if (_lastMovieUpdate == null || now.difference(_lastMovieUpdate!) > oneDay)
+      needsRefresh = true;
+    if (_lastSeriesUpdate == null ||
+        now.difference(_lastSeriesUpdate!) > oneDay)
+      needsRefresh = true;
+
+    if (!needsRefresh) return;
+
+    // We run this sequentially to avoid overwhelming.
+    // Also we DO NOT set _isLoading globally to avoid blocking the whole Home Screen if unwanted.
+    // But if we don't set loading, the UI won't show it's updating.
+    // The requirement "content must be updated" suggests we should just do it.
+
+    if (_lastLiveUpdate == null || now.difference(_lastLiveUpdate!) > oneDay) {
+      await loadXtream(
+        _savedUrl!,
+        _savedUser!,
+        _savedPass!,
+        forceRefresh: true,
+      );
+    }
+    if (_lastMovieUpdate == null ||
+        now.difference(_lastMovieUpdate!) > oneDay) {
+      await loadVod(_savedUrl!, _savedUser!, _savedPass!, forceRefresh: true);
+    }
+    if (_lastSeriesUpdate == null ||
+        now.difference(_lastSeriesUpdate!) > oneDay) {
+      await loadSeries(
+        _savedUrl!,
+        _savedUser!,
+        _savedPass!,
+        forceRefresh: true,
+      );
     }
   }
 
@@ -260,6 +369,12 @@ class ChannelProvider with ChangeNotifier {
 
   void clearList() async {
     _channels = [];
+    _cachedLive = [];
+    _cachedMovies = [];
+    _cachedSeries = [];
+    _lastLiveUpdate = null;
+    _lastMovieUpdate = null;
+    _lastSeriesUpdate = null;
     _savedUrl = null;
     _savedUser = null;
     _savedPass = null;
