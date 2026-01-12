@@ -388,21 +388,60 @@ class _LoginScreenState extends State<LoginScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        AndroidTVTextField(
-          controller: controller,
-          hint: hint,
-          focusNode: focusNode,
-          textColor: Colors.black,
-          obscureText: isPassword && !isPasswordVisible,
-          backgroundColor: Colors.white,
-          focuesedBorderColor: isFocused ? Colors.purple : Colors.white,
-          onSubmitted: (_) {
-            if (nextFocus != null) {
-              FocusScope.of(context).requestFocus(nextFocus);
-            } else {
-              _handleLogin();
-            }
-          },
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          decoration: BoxDecoration(
+            color: isFocused
+                ? Colors.white.withOpacity(0.9)
+                : Colors.white.withOpacity(0.3),
+            borderRadius: BorderRadius.circular(4),
+            border: isFocused
+                ? Border.all(color: Colors.purple, width: 2)
+                : null,
+            boxShadow: isFocused
+                ? [const BoxShadow(color: Colors.purpleAccent, blurRadius: 8)]
+                : [],
+          ),
+          child: Stack(
+            children: [
+              AndroidTVTextField(
+                key: ValueKey('${hint}_$isPasswordVisible'),
+                controller: controller,
+                hint: hint,
+                focusNode: focusNode,
+                textColor: Colors.black,
+                obscureText: isPassword && !isPasswordVisible,
+                backgroundColor: Colors
+                    .transparent, // Use transparent to show AnimatedContainer background
+                focuesedBorderColor: Colors
+                    .transparent, // Disable native border to use our custom one
+                onSubmitted: (_) {
+                  if (nextFocus != null) {
+                    FocusScope.of(context).requestFocus(nextFocus);
+                  } else {
+                    _handleLogin();
+                  }
+                },
+              ),
+              if (isPassword)
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  bottom: 0,
+                  child: Center(
+                    child: IconButton(
+                      icon: Icon(
+                        isPasswordVisible
+                            ? Icons.visibility
+                            : Icons.visibility_off,
+                        color: isFocused ? Colors.black54 : Colors.white70,
+                      ),
+                      onPressed: onVisibilityChanged,
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
         if (isPassword)
           const Padding(

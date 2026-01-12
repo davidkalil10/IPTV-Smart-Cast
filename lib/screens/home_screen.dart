@@ -293,10 +293,11 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               // Main Click Area (Opens Content without refresh)
               Positioned.fill(
-                child: GestureDetector(
-                  onTap: onTap,
-                  child: Container(
-                    color: Colors.transparent, // Hit test behavior
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: onTap,
                     child: Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -324,38 +325,45 @@ class _HomeScreenState extends State<HomeScreen> {
                 bottom: 0,
                 left: 0,
                 right: 0,
-                child: GestureDetector(
-                  onTap: onRefresh, // Refresh action
-                  child: Container(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: availableHeight * 0.04,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: const BorderRadius.only(
+                      bottomLeft: Radius.circular(12),
+                      bottomRight: Radius.circular(12),
                     ),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.3),
-                      borderRadius: const BorderRadius.only(
-                        bottomLeft: Radius.circular(12),
-                        bottomRight: Radius.circular(12),
+                    onTap: onRefresh, // Refresh action
+                    child: Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: availableHeight * 0.04,
                       ),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Ultima atualização: $timeString',
-                            style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: textSize,
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.3),
+                        borderRadius: const BorderRadius.only(
+                          bottomLeft: Radius.circular(12),
+                          bottomRight: Radius.circular(12),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Ultima atualização: $timeString',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: textSize,
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
-                        Icon(
-                          Icons.refresh,
-                          color: Colors.white,
-                          size: textSize * 1.5,
-                        ),
-                      ],
+                          Icon(
+                            Icons.refresh,
+                            color: Colors.white,
+                            size: textSize * 1.5,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
