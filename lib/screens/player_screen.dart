@@ -9,6 +9,7 @@ import '../widgets/video_controls_overlay.dart';
 import '../providers/channel_provider.dart';
 import '../services/playback_service.dart';
 import 'dart:async';
+import 'package:simple_pip_mode/simple_pip.dart';
 
 class PlayerScreen extends StatefulWidget {
   final Channel channel;
@@ -41,6 +42,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
   late final Player _player;
   late final VideoController _videoController;
   Timer? _progressTimer;
+  bool _isPip = false;
+  late SimplePip _pip;
 
   bool _isError = false;
   String _errorMessage = '';
@@ -58,6 +61,19 @@ class _PlayerScreenState extends State<PlayerScreen> {
     ]);
 
     _initializePlayer();
+    _pip = SimplePip(
+      onPipEntered: () {
+        setState(() {
+          _isPip = true;
+        });
+      },
+      onPipExited: () {
+        setState(() {
+          _isPip = false;
+        });
+      },
+    );
+    _pip.setAutoPipMode();
   }
 
   Future<void> _initializePlayer() async {
@@ -472,6 +488,34 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 ),
               ),
             ],
+          ),
+        ),
+      );
+    }
+
+    if (_isPip) {
+      // Minimal UI for PiP
+      return Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(
+          child: AspectRatio(
+            aspectRatio: _overrideAspectRatio ?? 16 / 9,
+            child: FittedBox(
+              fit: _overrideFit,
+              child: SizedBox(
+                width: MediaQuery.of(context).size.width,
+                height:
+                    MediaQuery.of(context).size.width /
+                    (_overrideAspectRatio ?? 16 / 9),
+                child: Video(
+                  controller: _videoController,
+                  controls: NoVideoControls,
+                  fit: _overrideFit == BoxFit.contain
+                      ? BoxFit.contain
+                      : BoxFit.cover,
+                ),
+              ),
+            ),
           ),
         ),
       );
