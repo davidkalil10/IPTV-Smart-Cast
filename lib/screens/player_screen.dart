@@ -211,6 +211,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       );
     }
 
+    _pip.setAutoPipMode(autoEnter: false);
     _player.dispose();
     super.dispose();
   }
