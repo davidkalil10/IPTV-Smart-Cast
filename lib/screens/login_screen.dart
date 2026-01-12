@@ -17,11 +17,10 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  late TextEditingController _nameController;
-  late NativeTextFieldController _nameNativeController;
-  late TextEditingController _urlController;
-  late TextEditingController _userController;
-  late TextEditingController _passController;
+  late NativeTextFieldController _nameController;
+  late NativeTextFieldController _urlController;
+  late NativeTextFieldController _userController;
+  late NativeTextFieldController _passController;
   bool _isPasswordVisible = false;
 
   // Focus Nodes
@@ -35,18 +34,16 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(
+    _nameController = NativeTextFieldController(
       text: widget.userToEdit?.name ?? '',
     );
-    _nameNativeController = NativeTextFieldController(
-      text: widget.userToEdit?.name ?? '',
+    _urlController = NativeTextFieldController(
+      text: widget.userToEdit?.url ?? '',
     );
-
-    _urlController = TextEditingController(text: widget.userToEdit?.url ?? '');
-    _userController = TextEditingController(
+    _userController = NativeTextFieldController(
       text: widget.userToEdit?.username ?? '',
     );
-    _passController = TextEditingController(
+    _passController = NativeTextFieldController(
       text: widget.userToEdit?.password ?? '',
     );
 
@@ -107,7 +104,6 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void dispose() {
     _nameController.dispose();
-    _nameNativeController.dispose();
     _urlController.dispose();
     _userController.dispose();
     _passController.dispose();
@@ -152,8 +148,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
             child: Row(
               children: [
-                // Left Side - Logo/Branding (Hide on very small screens if needed, or adjust flex)
-                // Keeping it visible but maybe smaller flex if needed.
+                // Left Side - Logo/Branding
                 if (!isSmallScreen || constraints.maxWidth > 600)
                   Expanded(
                     flex: 4,
@@ -262,7 +257,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         },
                         child: FocusTraversalGroup(
                           child: SingleChildScrollView(
-                            // Keeps scrolling if really needed
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -280,18 +274,11 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                                 SizedBox(height: headerSpacing),
 
-                                /* _buildTextField(
+                                _buildTextField(
                                   controller: _nameController,
                                   focusNode: _nameFocus,
                                   nextFocus: _userFocus,
                                   hint: 'Nome qualquer',
-                                  isDense: isSmallScreen,
-                                ), */
-                                _buildTextFieldNaative(
-                                  NativeController: _nameNativeController,
-                                  focusNode: _nameFocus,
-                                  nextFocus: _userFocus,
-                                  hint: 'Nome qualqueres',
                                   isDense: isSmallScreen,
                                 ),
                                 SizedBox(height: verticalSpacing),
@@ -387,37 +374,8 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildTextFieldNaative({
-    required NativeTextFieldController NativeController,
-    required FocusNode focusNode,
-    FocusNode? nextFocus,
-    required String hint,
-    bool isPassword = false,
-    bool isPasswordVisible = false,
-    VoidCallback? onVisibilityChanged,
-    bool isDense = false,
-  }) {
-    final isFocused = focusNode.hasFocus;
-    return AndroidTVTextField(
-      controller: NativeController,
-      hint: hint,
-      focusNode: focusNode,
-      textColor: Colors.black,
-      obscureText: isPassword && !isPasswordVisible,
-      backgroundColor: Colors.white,
-      focuesedBorderColor: isFocused ? Colors.purple : Colors.white,
-      onSubmitted: (_) {
-        if (nextFocus != null) {
-          FocusScope.of(context).requestFocus(nextFocus);
-        } else {
-          _handleLogin();
-        }
-      },
-    );
-  }
-
   Widget _buildTextField({
-    required TextEditingController controller,
+    required NativeTextFieldController controller,
     required FocusNode focusNode,
     FocusNode? nextFocus,
     required String hint,
@@ -427,65 +385,34 @@ class _LoginScreenState extends State<LoginScreen> {
     bool isDense = false,
   }) {
     final isFocused = focusNode.hasFocus;
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      decoration: BoxDecoration(
-        color: isFocused
-            ? Colors.white.withOpacity(0.9)
-            : Colors.white.withOpacity(0.3),
-        borderRadius: BorderRadius.circular(4),
-        border: isFocused ? Border.all(color: Colors.purple, width: 2) : null,
-        boxShadow: isFocused
-            ? [const BoxShadow(color: Colors.purpleAccent, blurRadius: 8)]
-            : [],
-      ),
-      child: TextField(
-        controller: controller,
-        focusNode: focusNode,
-        readOnly: true, // IMPORTANT: Prevent auto OS keyboard on focus
-        autofocus: false,
-        showCursor: isFocused, // Only show cursor if focused, or maybe always
-        enableInteractiveSelection: false, // Disable selection handles on TV
-        obscureText: isPassword && !isPasswordVisible,
-        style: TextStyle(color: isFocused ? Colors.black : Colors.white),
-        cursorColor: isFocused ? Colors.purple : Colors.white,
-        textInputAction: nextFocus != null
-            ? TextInputAction.next
-            : TextInputAction.done,
-        onSubmitted: (_) {
-          if (nextFocus != null) {
-            FocusScope.of(context).requestFocus(nextFocus);
-          } else {
-            _handleLogin();
-          }
-        },
-        onTap: () {
-          // Manual activation of keyboard
-          FocusScope.of(context).requestFocus(focusNode);
-          SystemChannels.textInput.invokeMethod('TextInput.show');
-        },
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: TextStyle(
-            color: isFocused ? Colors.black54 : Colors.white70,
-          ),
-          border: InputBorder.none,
-          isDense: isDense,
-          contentPadding: EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: isDense ? 8 : 14,
-          ),
-          suffixIcon: isPassword
-              ? IconButton(
-                  icon: Icon(
-                    isPasswordVisible ? Icons.visibility : Icons.visibility_off,
-                    color: isFocused ? Colors.black54 : Colors.white70,
-                  ),
-                  onPressed: onVisibilityChanged,
-                )
-              : null,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AndroidTVTextField(
+          controller: controller,
+          hint: hint,
+          focusNode: focusNode,
+          textColor: Colors.black,
+          obscureText: isPassword && !isPasswordVisible,
+          backgroundColor: Colors.white,
+          focuesedBorderColor: isFocused ? Colors.purple : Colors.white,
+          onSubmitted: (_) {
+            if (nextFocus != null) {
+              FocusScope.of(context).requestFocus(nextFocus);
+            } else {
+              _handleLogin();
+            }
+          },
         ),
-      ),
+        if (isPassword)
+          const Padding(
+            padding: EdgeInsets.only(top: 4.0),
+            child: Text(
+              'Clique para digitar. Acompanhe no campo nativo.',
+              style: TextStyle(color: Colors.white54, fontSize: 10),
+            ),
+          ),
+      ],
     );
   }
 
