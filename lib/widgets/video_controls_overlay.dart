@@ -866,15 +866,15 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
                               _buildSettingSection<SubtitleTrack>(
                                 'Faixas de legendas',
                                 widget.player.state.tracks.subtitle
-                                    .where(
-                                      (t) => t.id != 'auto' && t.id != 'no',
-                                    )
+                                    .where((t) => t.id != 'auto')
                                     .toList(),
                                 _selectedSubtitleTrack,
                                 (track) =>
                                     widget.player.setSubtitleTrack(track),
-                                (track) =>
-                                    '${track.id}: ${track.language ?? "Unknown"} ${track.codec ?? ""} ${track.title ?? ""}',
+                                (track) {
+                                  if (track.id == 'no') return 'Desativado';
+                                  return '${track.id}: ${track.language ?? "Unknown"} ${track.codec ?? ""} ${track.title ?? ""}';
+                                },
                               ),
                               const Divider(color: Colors.white24),
                             ],
