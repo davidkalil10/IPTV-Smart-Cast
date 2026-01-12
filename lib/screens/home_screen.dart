@@ -49,204 +49,227 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF101010),
       body: SafeArea(
-        child: Column(
+        child: Stack(
           children: [
-            // AppBar Personalizado
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 24.0,
-                vertical: 20,
-              ),
-              child: Row(
+              Column(
                 children: [
-                  const Text(
-                    'IPTV',
-                    style: TextStyle(
-                      color: Colors.blue,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
+                  // AppBar Personalizado
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24.0,
+                      vertical: 20,
                     ),
-                  ),
-                  const Text(
-                    ' SMART CAST',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const Spacer(),
-                  // Removed unused icons as requested
-                  IconButton(
-                    icon: const Icon(Icons.settings, color: Colors.white),
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const SettingsScreen(),
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.switch_account, color: Colors.white),
-                    onPressed: () {
-                      auth.logout();
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const UserSelectionScreen(),
+                    child: Row(
+                      children: [
+                        const Text(
+                          'IPTV',
+                          style: TextStyle(
+                            color: Colors.blue,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      );
-                    },
+                        const Text(
+                          ' SMART CAST',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const Spacer(),
+                        // Removed unused icons as requested
+                        IconButton(
+                          icon: const Icon(Icons.settings, color: Colors.white),
+                          onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const SettingsScreen(),
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.switch_account,
+                            color: Colors.white,
+                          ),
+                          onPressed: () {
+                            auth.logout();
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const UserSelectionScreen(),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Main Grid
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(
+                            child: Consumer<ChannelProvider>(
+                              builder: (context, provider, _) {
+                                return _buildMainCard(
+                                  context,
+                                  'TV AO VIVO',
+                                  Icons.tv,
+                                  [
+                                    const Color(0xFF00C9FF),
+                                    const Color(0xFF92FE9D),
+                                  ],
+                                  () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            const ContentListScreen(
+                                              title: 'TV ao Vivo',
+                                              type: ContentType.live,
+                                            ),
+                                      ),
+                                    );
+                                  },
+                                  lastUpdate: provider.lastLiveUpdate,
+                                  onRefresh: () async {
+                                    await _handleRefresh(() async {
+                                      await provider.loadXtream(
+                                        user.url,
+                                        user.username,
+                                        user.password,
+                                        forceRefresh: true,
+                                      );
+                                    });
+                                  },
+                                );
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Consumer<ChannelProvider>(
+                              builder: (context, provider, _) {
+                                return _buildMainCard(
+                                  context,
+                                  'FILMES',
+                                  Icons.play_circle_fill,
+                                  [
+                                    const Color(0xFFFF512F),
+                                    const Color(0xFFDD2476),
+                                  ],
+                                  () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            const ContentListScreen(
+                                              title: 'Filmes',
+                                              type: ContentType.movie,
+                                            ),
+                                      ),
+                                    );
+                                  },
+                                  lastUpdate: provider.lastMovieUpdate,
+                                  onRefresh: () async {
+                                    await _handleRefresh(() async {
+                                      await provider.loadVod(
+                                        user.url,
+                                        user.username,
+                                        user.password,
+                                        forceRefresh: true,
+                                      );
+                                    });
+                                  },
+                                );
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Consumer<ChannelProvider>(
+                              builder: (context, provider, _) {
+                                return _buildMainCard(
+                                  context,
+                                  'SÉRIES',
+                                  Icons.movie_filter,
+                                  [
+                                    const Color(0xFF8E2DE2),
+                                    const Color(0xFF4A00E0),
+                                  ],
+                                  () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            const ContentListScreen(
+                                              title: 'Séries',
+                                              type: ContentType.series,
+                                            ),
+                                      ),
+                                    );
+                                  },
+                                  lastUpdate: provider.lastSeriesUpdate,
+                                  onRefresh: () async {
+                                    await _handleRefresh(() async {
+                                      await provider.loadSeries(
+                                        user.url,
+                                        user.username,
+                                        user.password,
+                                        forceRefresh: true,
+                                      );
+                                    });
+                                  },
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Footer
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Row(
+                      children: [
+                        Text(
+                          'Expiração: ${user.expiryDate != null ? _formatExpiryDate(user.expiryDate!) : 'Ilimitado'}',
+                          style: const TextStyle(color: Colors.white70),
+                        ),
+                        const Spacer(),
+                        Text(
+                          'Conectado: ${user.name}',
+                          style: const TextStyle(color: Colors.white70),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
-            ),
-
-            // Main Grid
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(
-                      child: Consumer<ChannelProvider>(
-                        builder: (context, provider, _) {
-                          return _buildMainCard(
-                            context,
-                            'TV AO VIVO',
-                            Icons.tv,
-                            [const Color(0xFF00C9FF), const Color(0xFF92FE9D)],
-                            () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const ContentListScreen(
-                                    title: 'TV ao Vivo',
-                                    type: ContentType.live,
-                                  ),
-                                ),
-                              );
-                            },
-                            lastUpdate: provider.lastLiveUpdate,
-                            onRefresh: () async {
-                              await _handleRefresh(() async {
-                                await provider.loadXtream(
-                                  user.url,
-                                  user.username,
-                                  user.password,
-                                  forceRefresh: true,
-                                );
-                              });
-                            },
-                          );
-                        },
+              if (_isRefreshing)
+                Positioned.fill(
+                  child: Container(
+                    color: Colors.black.withOpacity(0.7),
+                    child: const Center(
+                      child: CircularProgressIndicator(
+                        color: Color(0xFF00BFA5),
                       ),
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Consumer<ChannelProvider>(
-                        builder: (context, provider, _) {
-                          return _buildMainCard(
-                            context,
-                            'FILMES',
-                            Icons.play_circle_fill,
-                            [const Color(0xFFFF512F), const Color(0xFFDD2476)],
-                            () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const ContentListScreen(
-                                    title: 'Filmes',
-                                    type: ContentType.movie,
-                                  ),
-                                ),
-                              );
-                            },
-                            lastUpdate: provider.lastMovieUpdate,
-                            onRefresh: () async {
-                              await _handleRefresh(() async {
-                                await provider.loadVod(
-                                  user.url,
-                                  user.username,
-                                  user.password,
-                                  forceRefresh: true,
-                                );
-                              });
-                            },
-                          );
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Consumer<ChannelProvider>(
-                        builder: (context, provider, _) {
-                          return _buildMainCard(
-                            context,
-                            'SÉRIES',
-                            Icons.movie_filter,
-                            [const Color(0xFF8E2DE2), const Color(0xFF4A00E0)],
-                            () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const ContentListScreen(
-                                    title: 'Séries',
-                                    type: ContentType.series,
-                                  ),
-                                ),
-                              );
-                            },
-                            lastUpdate: provider.lastSeriesUpdate,
-                            onRefresh: () async {
-                              await _handleRefresh(() async {
-                                await provider.loadSeries(
-                                  user.url,
-                                  user.username,
-                                  user.password,
-                                  forceRefresh: true,
-                                );
-                              });
-                            },
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            // Footer
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Row(
-                children: [
-                  Text(
-                    'Expiração: ${user.expiryDate != null ? _formatExpiryDate(user.expiryDate!) : 'Ilimitado'}',
-                    style: const TextStyle(color: Colors.white70),
-                  ),
-                  const Spacer(),
-                  Text(
-                    'Conectado: ${user.name}',
-                    style: const TextStyle(color: Colors.white70),
-                  ),
-                ],
-              ),
-            ),
-            if (_isRefreshing)
-              Positioned.fill(
-                child: Container(
-                  color: Colors.black.withOpacity(0.7),
-                  child: const Center(
-                    child: CircularProgressIndicator(color: Color(0xFF00BFA5)),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
-      ),
+
     );
   }
 
@@ -259,119 +282,13 @@ class _HomeScreenState extends State<HomeScreen> {
     DateTime? lastUpdate,
     VoidCallback? onRefresh,
   }) {
-    String timeString = "Nunca atualizado";
-    if (lastUpdate != null) {
-      final now = DateTime.now();
-      final diff = now.difference(lastUpdate);
-      if (diff.inSeconds < 60) {
-        timeString = "Agora mesmo";
-      } else if (diff.inMinutes < 60) {
-        timeString = "${diff.inMinutes} min atrás";
-      } else if (diff.inHours < 24) {
-        timeString = "${diff.inHours} horas atrás";
-      } else {
-        timeString = "${diff.inDays} dias atrás";
-      }
-    }
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // Calculate responsive sizes based on available height but clamp them
-        // to prevent them from becoming huge on tablets/TVs.
-        final availableHeight = constraints.maxHeight;
-
-        final iconSize = (availableHeight * 0.25).clamp(40.0, 80.0);
-        final titleSize = (availableHeight * 0.10).clamp(18.0, 32.0);
-        final textSize = (availableHeight * 0.05).clamp(12.0, 16.0);
-
-        return Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(colors: colors),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Stack(
-            children: [
-              // Main Click Area (Opens Content without refresh)
-              Positioned.fill(
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(12),
-                    onTap: onTap,
-                    child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(icon, size: iconSize, color: Colors.white),
-                          SizedBox(height: availableHeight * 0.04),
-                          Text(
-                            title,
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: titleSize,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          SizedBox(height: availableHeight * 0.1),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-
-              // Footer Click Area (Refreshes Content)
-              Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: const BorderRadius.only(
-                      bottomLeft: Radius.circular(12),
-                      bottomRight: Radius.circular(12),
-                    ),
-                    onTap: onRefresh, // Refresh action
-                    child: Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: availableHeight * 0.04,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.3),
-                        borderRadius: const BorderRadius.only(
-                          bottomLeft: Radius.circular(12),
-                          bottomRight: Radius.circular(12),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Ultima atualização: $timeString',
-                              style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: textSize,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          Icon(
-                            Icons.refresh,
-                            color: Colors.white,
-                            size: textSize * 1.5,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+    return HomeGridCard(
+      title: title,
+      icon: icon,
+      colors: colors,
+      onTap: onTap,
+      lastUpdate: lastUpdate,
+      onRefresh: onRefresh,
     );
   }
 
@@ -402,5 +319,182 @@ class _HomeScreenState extends State<HomeScreen> {
     final minute = localDate.minute.toString().padLeft(2, '0');
 
     return '$day $month $year, $hour:$minute';
+  }
+}
+
+class HomeGridCard extends StatefulWidget {
+  final String title;
+  final IconData icon;
+  final List<Color> colors;
+  final VoidCallback onTap;
+  final DateTime? lastUpdate;
+  final VoidCallback? onRefresh;
+
+  const HomeGridCard({
+    super.key,
+    required this.title,
+    required this.icon,
+    required this.colors,
+    required this.onTap,
+    this.lastUpdate,
+    this.onRefresh,
+  });
+
+  @override
+  State<HomeGridCard> createState() => _HomeGridCardState();
+}
+
+class _HomeGridCardState extends State<HomeGridCard> {
+  bool _isMainFocused = false;
+  bool _isFooterFocused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    String timeString = "Nunca atualizado";
+    if (widget.lastUpdate != null) {
+      final now = DateTime.now();
+      final diff = now.difference(widget.lastUpdate!);
+      if (diff.inSeconds < 60) {
+        timeString = "Agora mesmo";
+      } else if (diff.inMinutes < 60) {
+        timeString = "${diff.inMinutes} min atrás";
+      } else if (diff.inHours < 24) {
+        timeString = "${diff.inHours} horas atrás";
+      } else {
+        timeString = "${diff.inDays} dias atrás";
+      }
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availableHeight = constraints.maxHeight;
+
+        // Adjust sizes based on height
+        final iconSize = (availableHeight * 0.25).clamp(40.0, 80.0);
+        final titleSize = (availableHeight * 0.10).clamp(18.0, 32.0);
+        final textSize = (availableHeight * 0.05).clamp(12.0, 16.0);
+
+        return Column(
+          children: [
+            // Main Card Area
+            Expanded(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                transform: _isMainFocused
+                    ? (Matrix4.identity()..scale(1.02))
+                    : Matrix4.identity(),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: widget.colors),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(12),
+                  ),
+                  border: _isMainFocused
+                      ? Border.all(color: Colors.white, width: 3)
+                      : null,
+                  boxShadow: _isMainFocused
+                      ? [
+                          BoxShadow(
+                            color: widget.colors.first.withOpacity(0.6),
+                            blurRadius: 15,
+                            spreadRadius: 2,
+                          ),
+                        ]
+                      : [],
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(12),
+                    ),
+                    onTap: widget.onTap,
+                    onFocusChange: (value) =>
+                        setState(() => _isMainFocused = value),
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            widget.icon,
+                            size: iconSize,
+                            color: Colors.white,
+                          ),
+                          SizedBox(height: availableHeight * 0.04),
+                          Text(
+                            widget.title,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: titleSize,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            // Footer Area (Refresh)
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.3),
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(12),
+                ),
+                border: _isFooterFocused
+                    ? Border.all(color: Colors.white, width: 2)
+                    : null,
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: const BorderRadius.vertical(
+                    bottom: Radius.circular(12),
+                  ),
+                  onTap: widget.onRefresh,
+                  onFocusChange: (value) =>
+                      setState(() => _isFooterFocused = value),
+                  child: Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: availableHeight * 0.04,
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Ultima atualização: $timeString',
+                            style: TextStyle(
+                              color: _isFooterFocused
+                                  ? Colors.white
+                                  : Colors.white70,
+                              fontSize: textSize,
+                              fontWeight: _isFooterFocused
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Icon(
+                          Icons.refresh,
+                          color: _isFooterFocused
+                              ? Colors.white
+                              : Colors.white70,
+                          size: textSize * 1.5,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 }
