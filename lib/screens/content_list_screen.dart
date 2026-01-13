@@ -483,6 +483,7 @@ class _ContentListScreenState extends State<ContentListScreen> {
                             child: Row(
                               children: [
                                 _FocusableActionWrapper(
+                                  showFocusHighlight: _isAndroidTV,
                                   onTap: () => Navigator.pop(context),
                                   child: const Padding(
                                     padding: EdgeInsets.all(8.0),
@@ -551,6 +552,7 @@ class _ContentListScreenState extends State<ContentListScreen> {
                                 }
 
                                 return CategoryListItem(
+                                  showFocusHighlight: _isAndroidTV,
                                   focusNode: index == 0
                                       ? _firstCategoryFocus
                                       : null,
@@ -622,55 +624,55 @@ class _ContentListScreenState extends State<ContentListScreen> {
                                         ),
 
                                       if (!_isContentSearchVisible)
-                                        if (!_isContentSearchVisible)
-                                          _FocusableActionWrapper(
-                                            onTap: () {
-                                              setState(() {
-                                                _isContentSearchVisible = true;
-                                              });
-                                              WidgetsBinding.instance
-                                                  .addPostFrameCallback((_) {
-                                                    _contentSearchFocus
-                                                        .requestFocus();
-                                                    SystemChannels.textInput
-                                                        .invokeMethod(
-                                                          'TextInput.show',
-                                                        );
-                                                  });
-                                            },
-                                            child: const Padding(
-                                              padding: EdgeInsets.all(8.0),
-                                              child: Icon(
-                                                Icons.search,
-                                                size: 28,
-                                                color: Colors.white,
-                                              ),
+                                        _FocusableActionWrapper(
+                                          showFocusHighlight: _isAndroidTV,
+                                          onTap: () {
+                                            setState(() {
+                                              _isContentSearchVisible = true;
+                                            });
+                                            WidgetsBinding.instance
+                                                .addPostFrameCallback((_) {
+                                                  _contentSearchFocus
+                                                      .requestFocus();
+                                                  SystemChannels.textInput
+                                                      .invokeMethod(
+                                                        'TextInput.show',
+                                                      );
+                                                });
+                                          },
+                                          child: const Padding(
+                                            padding: EdgeInsets.all(8.0),
+                                            child: Icon(
+                                              Icons.search,
+                                              size: 28,
+                                              color: Colors.white,
                                             ),
                                           ),
+                                        ),
 
                                       if (_isContentSearchVisible)
-                                        if (_isContentSearchVisible)
-                                          _FocusableActionWrapper(
-                                            onTap: () {
-                                              setState(() {
-                                                _contentSearchQuery = '';
-                                                _contentSearchController
-                                                    .clear();
-                                                _isContentSearchVisible = false;
-                                              });
-                                            },
-                                            child: const Padding(
-                                              padding: EdgeInsets.all(8.0),
-                                              child: Icon(
-                                                Icons.close,
-                                                color: Colors.white,
-                                              ),
+                                        _FocusableActionWrapper(
+                                          showFocusHighlight: _isAndroidTV,
+                                          onTap: () {
+                                            setState(() {
+                                              _contentSearchQuery = '';
+                                              _contentSearchController.clear();
+                                              _isContentSearchVisible = false;
+                                            });
+                                          },
+                                          child: const Padding(
+                                            padding: EdgeInsets.all(8.0),
+                                            child: Icon(
+                                              Icons.close,
+                                              color: Colors.white,
                                             ),
                                           ),
+                                        ),
 
                                       const SizedBox(width: 8),
 
                                       _FocusableActionWrapper(
+                                        showFocusHighlight: _isAndroidTV,
                                         child: PopupMenuButton<String>(
                                           icon: const Icon(
                                             Icons.more_vert,
@@ -1164,7 +1166,9 @@ class _ContentListScreenState extends State<ContentListScreen> {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(4),
-            borderSide: const BorderSide(color: Colors.tealAccent, width: 2),
+            borderSide: _isAndroidTV
+                ? const BorderSide(color: Colors.tealAccent, width: 2)
+                : BorderSide.none,
           ),
         ),
         onChanged: onChanged,
@@ -1198,8 +1202,13 @@ class _ContentListScreenState extends State<ContentListScreen> {
 class _FocusableActionWrapper extends StatefulWidget {
   final Widget child;
   final VoidCallback? onTap;
+  final bool showFocusHighlight;
 
-  const _FocusableActionWrapper({required this.child, this.onTap});
+  const _FocusableActionWrapper({
+    required this.child,
+    this.onTap,
+    this.showFocusHighlight = false,
+  });
 
   @override
   State<_FocusableActionWrapper> createState() =>
@@ -1231,11 +1240,13 @@ class _FocusableActionWrapperState extends State<_FocusableActionWrapper> {
         onTap: widget.onTap,
         child: Container(
           decoration: BoxDecoration(
-            color: _isFocused
+            color: (widget.showFocusHighlight && _isFocused)
                 ? Colors.tealAccent.withOpacity(0.2)
                 : Colors.transparent,
             border: Border.all(
-              color: _isFocused ? Colors.tealAccent : Colors.transparent,
+              color: (widget.showFocusHighlight && _isFocused)
+                  ? Colors.tealAccent
+                  : Colors.transparent,
               width: 2,
             ),
             borderRadius: BorderRadius.circular(4),

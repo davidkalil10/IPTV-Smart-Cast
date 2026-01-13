@@ -4,6 +4,7 @@ class CategoryListItem extends StatefulWidget {
   final String title;
   final String count;
   final bool isSelected;
+  final bool showFocusHighlight;
   final VoidCallback onTap;
   final FocusNode? focusNode;
 
@@ -12,6 +13,7 @@ class CategoryListItem extends StatefulWidget {
     required this.title,
     required this.count,
     required this.isSelected,
+    this.showFocusHighlight = false,
     required this.onTap,
     this.focusNode,
   });
@@ -33,10 +35,10 @@ class _CategoryListItemState extends State<CategoryListItem> {
         decoration: BoxDecoration(
           color: widget.isSelected
               ? const Color(0xFF00838F) // Selected color
-              : _isFocused
+              : (widget.showFocusHighlight && _isFocused)
               ? Colors.white.withOpacity(0.1) // Focus color
               : Colors.transparent,
-          border: _isFocused
+          border: (widget.showFocusHighlight && _isFocused)
               ? Border.all(color: Colors.white, width: 2) // Focus border
               : Border.all(color: Colors.transparent, width: 2),
         ),
