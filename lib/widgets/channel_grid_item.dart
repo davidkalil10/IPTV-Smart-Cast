@@ -27,8 +27,10 @@ class ChannelGridItem extends StatefulWidget {
 
 class _ChannelGridItemState extends State<ChannelGridItem> {
   bool _isFocused = false;
+
   Timer? _longPressTimer;
   bool _isLongPress = false;
+  bool _hasKeyDown = false;
 
   @override
   void dispose() {
@@ -36,32 +38,54 @@ class _ChannelGridItemState extends State<ChannelGridItem> {
     super.dispose();
   }
 
+  // Global static lock to prevent double navigation across ALL grid items
+  static bool _isNavigatingGlobal = false;
+
   void _handleTap() {
-    if (widget.onTap != null)
+    if (_isNavigatingGlobal) return;
+
+    if (widget.onTap != null) {
       widget.onTap!();
-    else {
+    } else {
+      _isNavigatingGlobal = true;
+      Future<void> navigationFuture;
+
       if (widget.channel.type == 'movie') {
-        Navigator.push(
+        navigationFuture = Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => MovieDetailScreen(channel: widget.channel),
+            settings: const RouteSettings(name: 'MovieDetail'),
           ),
         );
       } else if (widget.channel.type == 'series') {
-        Navigator.push(
+        navigationFuture = Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => SeriesDetailScreen(channel: widget.channel),
+            settings: const RouteSettings(name: 'SeriesDetail'),
           ),
         );
       } else {
-        Navigator.push(
+        navigationFuture = Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => PlayerScreen(channel: widget.channel),
+            settings: const RouteSettings(name: 'Player'),
           ),
         );
       }
+
+      navigationFuture
+          .then((_) {
+            // Delay slightly to ensure pop animation clears before allowing new nav
+            Future.delayed(const Duration(milliseconds: 300), () {
+              if (mounted) _isNavigatingGlobal = false;
+            });
+          })
+          .catchError((_) {
+            _isNavigatingGlobal = false;
+          });
     }
   }
 
@@ -90,12 +114,14 @@ class _ChannelGridItemState extends State<ChannelGridItem> {
       onFocusChange: (value) {
         setState(() {
           _isFocused = value;
+          if (!value) _hasKeyDown = false; // Reset if focus lost
         });
       },
       onKeyEvent: (node, event) {
         if (event.logicalKey == LogicalKeyboardKey.select ||
             event.logicalKey == LogicalKeyboardKey.enter) {
           if (event is KeyDownEvent) {
+            _hasKeyDown = true;
             if (_longPressTimer != null && _longPressTimer!.isActive)
               return KeyEventResult.handled;
             _isLongPress = false;
@@ -106,8 +132,11 @@ class _ChannelGridItemState extends State<ChannelGridItem> {
             return KeyEventResult.handled;
           } else if (event is KeyUpEvent) {
             _longPressTimer?.cancel();
-            if (!_isLongPress) {
+            if (_hasKeyDown && !_isLongPress) {
+              _hasKeyDown = false;
               _handleTap();
+            } else {
+              _hasKeyDown = false;
             }
             return KeyEventResult.handled;
           }

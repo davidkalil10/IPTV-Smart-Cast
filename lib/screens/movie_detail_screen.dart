@@ -147,7 +147,9 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                           children: [
                             FocusableActionWrapper(
                               showFocusHighlight: _isAndroidTV,
-                              onTap: () => Navigator.pop(context),
+                              onTap: () {
+                                Navigator.maybePop(context);
+                              },
                               child: const Padding(
                                 padding: EdgeInsets.all(8.0),
                                 child: Icon(

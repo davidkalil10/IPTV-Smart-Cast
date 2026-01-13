@@ -276,7 +276,9 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                                 size: 28,
                               ),
 
-                              onPressed: () => Navigator.pop(context),
+                              onPressed: () {
+                                Navigator.maybePop(context);
+                              },
                             ),
 
                             Expanded(

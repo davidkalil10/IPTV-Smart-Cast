@@ -267,6 +267,30 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
   }
 
+  Future<void> _saveProgress() async {
+    // Manually trigger save before popping
+    if (_player.state.duration.inSeconds > 0) {
+      final position = _player.state.position.inSeconds;
+      final duration = _player.state.duration.inSeconds;
+
+      // Check for reset bug condition
+      if (widget.startPosition != null &&
+          widget.startPosition!.inSeconds > 10 &&
+          position < 5 &&
+          !_isUserRestart) {
+        debugPrint("PLAYER: Back Save SKIPPED to prevent reset bug.");
+      } else {
+        debugPrint("PLAYER: Manual save on Back: $position / $duration");
+        await PlaybackService().saveProgress(
+          widget.channel.id,
+          position,
+          duration,
+          seriesId: widget.seriesId,
+        );
+      }
+    }
+  }
+
   void _showNoMoreEpisodesMsg() {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text("Não há mais episódios disponíveis.")),
@@ -581,6 +605,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
               _isUserRestart = true;
               _player.seek(Duration.zero);
             },
+            onExit: _saveProgress,
           ),
         ],
       ),

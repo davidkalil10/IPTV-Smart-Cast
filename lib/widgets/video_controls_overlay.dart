@@ -11,6 +11,8 @@ class VideoControlsOverlay extends StatefulWidget {
   final VoidCallback onShowEpisodes;
   final Function(double ratio, BoxFit fit) onResize;
   final Function(int size) onSubtitleSizeChanged;
+  final VoidCallback onRestart;
+  final VoidCallback? onExit;
 
   const VideoControlsOverlay({
     super.key,
@@ -21,9 +23,8 @@ class VideoControlsOverlay extends StatefulWidget {
     required this.onResize,
     required this.onSubtitleSizeChanged,
     required this.onRestart,
+    this.onExit,
   });
-
-  final VoidCallback onRestart;
 
   @override
   State<VideoControlsOverlay> createState() => _VideoControlsOverlayState();
@@ -499,6 +500,8 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
           setState(() => _showControls = false);
           return false; // Do not exit, just hide controls
         }
+        // System back pressed and controls are hidden -> Exit
+        if (widget.onExit != null) widget.onExit!();
         return true; // Exit player
       },
       child: RawKeyboardListener(
@@ -589,7 +592,11 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
                               Icons.arrow_back,
                               color: Colors.white,
                             ),
-                            onPressed: () => Navigator.pop(context),
+                            onPressed: () {
+                              // UI Back Button: Always exit
+                              if (widget.onExit != null) widget.onExit!();
+                              Navigator.pop(context);
+                            },
                           ),
                           const SizedBox(width: 10),
                           Expanded(
