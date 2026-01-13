@@ -9,6 +9,7 @@ import '../providers/auth_provider.dart';
 import '../models/channel.dart';
 import '../widgets/channel_grid_item.dart';
 import '../widgets/category_list_item.dart';
+import '../widgets/focusable_action_wrapper.dart';
 import '../services/playback_service.dart';
 import '../services/iptv_service.dart';
 import 'player_screen.dart';
@@ -482,7 +483,7 @@ class _ContentListScreenState extends State<ContentListScreen> {
                             alignment: Alignment.centerLeft,
                             child: Row(
                               children: [
-                                _FocusableActionWrapper(
+                                FocusableActionWrapper(
                                   showFocusHighlight: _isAndroidTV,
                                   onTap: () => Navigator.pop(context),
                                   child: const Padding(
@@ -624,7 +625,7 @@ class _ContentListScreenState extends State<ContentListScreen> {
                                         ),
 
                                       if (!_isContentSearchVisible)
-                                        _FocusableActionWrapper(
+                                        FocusableActionWrapper(
                                           showFocusHighlight: _isAndroidTV,
                                           onTap: () {
                                             setState(() {
@@ -651,7 +652,7 @@ class _ContentListScreenState extends State<ContentListScreen> {
                                         ),
 
                                       if (_isContentSearchVisible)
-                                        _FocusableActionWrapper(
+                                        FocusableActionWrapper(
                                           showFocusHighlight: _isAndroidTV,
                                           onTap: () {
                                             setState(() {
@@ -671,7 +672,7 @@ class _ContentListScreenState extends State<ContentListScreen> {
 
                                       const SizedBox(width: 8),
 
-                                      _FocusableActionWrapper(
+                                      FocusableActionWrapper(
                                         showFocusHighlight: _isAndroidTV,
                                         child: PopupMenuButton<String>(
                                           icon: const Icon(
@@ -1196,64 +1197,5 @@ class _ContentListScreenState extends State<ContentListScreen> {
         ),
       );
     }
-  }
-}
-
-class _FocusableActionWrapper extends StatefulWidget {
-  final Widget child;
-  final VoidCallback? onTap;
-  final bool showFocusHighlight;
-
-  const _FocusableActionWrapper({
-    required this.child,
-    this.onTap,
-    this.showFocusHighlight = false,
-  });
-
-  @override
-  State<_FocusableActionWrapper> createState() =>
-      _FocusableActionWrapperState();
-}
-
-class _FocusableActionWrapperState extends State<_FocusableActionWrapper> {
-  bool _isFocused = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return Focus(
-      onFocusChange: (hasFocus) {
-        setState(() {
-          _isFocused = hasFocus;
-        });
-      },
-      onKeyEvent: (node, event) {
-        if (widget.onTap != null &&
-            event is KeyDownEvent &&
-            (event.logicalKey == LogicalKeyboardKey.enter ||
-                event.logicalKey == LogicalKeyboardKey.select)) {
-          widget.onTap!();
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.ignored;
-      },
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            color: (widget.showFocusHighlight && _isFocused)
-                ? Colors.tealAccent.withOpacity(0.2)
-                : Colors.transparent,
-            border: Border.all(
-              color: (widget.showFocusHighlight && _isFocused)
-                  ? Colors.tealAccent
-                  : Colors.transparent,
-              width: 2,
-            ),
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: widget.child,
-        ),
-      ),
-    );
   }
 }

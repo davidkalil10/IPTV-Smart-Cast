@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter_android_tv_text_field/native_textfield_tv.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
@@ -24,6 +25,7 @@ class _LoginScreenState extends State<LoginScreen> {
   late NativeTextFieldController _userController;
   late NativeTextFieldController _passController;
   bool _isPasswordVisible = false;
+  bool _isAndroidTV = false;
 
   // Focus Nodes
   late FocusNode _nameFocus;
@@ -67,6 +69,24 @@ class _LoginScreenState extends State<LoginScreen> {
         FocusScope.of(context).requestFocus(_nameFocus);
       }
     });
+
+    _checkDeviceType();
+  }
+
+  Future<void> _checkDeviceType() async {
+    if (kIsWeb || !Platform.isAndroid) return;
+
+    final deviceInfo = DeviceInfoPlugin();
+    final androidInfo = await deviceInfo.androidInfo;
+    final hasLeanback = androidInfo.systemFeatures.contains(
+      'android.software.leanback',
+    );
+
+    if (mounted) {
+      setState(() {
+        _isAndroidTV = hasLeanback;
+      });
+    }
   }
 
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
@@ -130,15 +150,10 @@ class _LoginScreenState extends State<LoginScreen> {
         builder: (context, constraints) {
           final isSmallScreen = constraints.maxHeight < 500;
 
-          bool useStandardTextField = kIsWeb;
-          if (!kIsWeb) {
-            // Use standard text field on iOS, or on Android if it's a small screen (phone/tablet likely)
-            // or if the user explicitly prefers it for touch devices.
-            // Using isSmallScreen as a proxy for 'Mobile/Tablet' layout.
-            if (Platform.isIOS || (Platform.isAndroid && isSmallScreen)) {
-              useStandardTextField = true;
-            }
-          }
+          // Use strict device detection for Input Component Type
+          // Android TV -> Native Interface
+          // All others (Mobile, Tablet, Web, Desktop) -> Standard TextField
+          bool useStandardTextField = !_isAndroidTV;
 
           // Compact visual settings
           final double verticalSpacing = isSmallScreen ? 10 : 16;

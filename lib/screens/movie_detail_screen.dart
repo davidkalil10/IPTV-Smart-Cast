@@ -1,4 +1,9 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:device_info_plus/device_info_plus.dart';
+import 'dart:io';
+import '../widgets/focusable_action_wrapper.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:ui';
@@ -19,12 +24,47 @@ class MovieDetailScreen extends StatefulWidget {
 
 class _MovieDetailScreenState extends State<MovieDetailScreen> {
   bool _isLoading = true;
+  bool _isAndroidTV = false;
   Map<String, dynamic> _info = {};
+
+  // Focus Nodes
+  final FocusNode _playFocus = FocusNode();
+  final FocusNode _resumeFocus = FocusNode();
 
   @override
   void initState() {
     super.initState();
+    _playFocus.addListener(_onFocusChange);
+    _resumeFocus.addListener(_onFocusChange);
+    _checkDeviceType();
     _fetchDetails();
+  }
+
+  @override
+  void dispose() {
+    _playFocus.dispose();
+    _resumeFocus.dispose();
+    super.dispose();
+  }
+
+  void _onFocusChange() {
+    setState(() {});
+  }
+
+  Future<void> _checkDeviceType() async {
+    if (kIsWeb || !Platform.isAndroid) return;
+
+    final deviceInfo = DeviceInfoPlugin();
+    final androidInfo = await deviceInfo.androidInfo;
+    final hasLeanback = androidInfo.systemFeatures.contains(
+      'android.software.leanback',
+    );
+
+    if (mounted) {
+      setState(() {
+        _isAndroidTV = hasLeanback;
+      });
+    }
   }
 
   Future<void> _fetchDetails() async {
@@ -105,13 +145,17 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            IconButton(
-                              icon: const Icon(
-                                Icons.arrow_back,
-                                color: Colors.white,
-                                size: 28,
+                            FocusableActionWrapper(
+                              showFocusHighlight: _isAndroidTV,
+                              onTap: () => Navigator.pop(context),
+                              child: const Padding(
+                                padding: EdgeInsets.all(8.0),
+                                child: Icon(
+                                  Icons.arrow_back,
+                                  color: Colors.white,
+                                  size: 28,
+                                ),
                               ),
-                              onPressed: () => Navigator.pop(context),
                             ),
                             Expanded(
                               child: Text(
@@ -125,58 +169,61 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                            PopupMenuButton<String>(
-                              icon: const Icon(
-                                Icons.more_vert,
-                                color: Colors.white,
-                                size: 28,
+                            FocusableActionWrapper(
+                              showFocusHighlight: _isAndroidTV,
+                              child: PopupMenuButton<String>(
+                                icon: const Icon(
+                                  Icons.more_vert,
+                                  color: Colors.white,
+                                  size: 28,
+                                ),
+                                color: Colors.grey[900],
+                                onSelected: (value) {
+                                  if (value == 'home') {
+                                    Navigator.popUntil(
+                                      context,
+                                      (route) => route.isFirst,
+                                    );
+                                  } else if (value == 'exit') {
+                                    Navigator.popUntil(
+                                      context,
+                                      (route) => route.isFirst,
+                                    );
+                                    // In a real app we might invoke SystemNavigator.pop()
+                                  }
+                                },
+                                itemBuilder: (context) => [
+                                  const PopupMenuItem(
+                                    value: 'home',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.home, color: Colors.white),
+                                        SizedBox(width: 10),
+                                        Text(
+                                          'Home Screen',
+                                          style: TextStyle(color: Colors.white),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 'exit',
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.exit_to_app,
+                                          color: Colors.white,
+                                        ),
+                                        SizedBox(width: 10),
+                                        Text(
+                                          'Sair',
+                                          style: TextStyle(color: Colors.white),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ),
-                              color: Colors.grey[900],
-                              onSelected: (value) {
-                                if (value == 'home') {
-                                  Navigator.popUntil(
-                                    context,
-                                    (route) => route.isFirst,
-                                  );
-                                } else if (value == 'exit') {
-                                  Navigator.popUntil(
-                                    context,
-                                    (route) => route.isFirst,
-                                  );
-                                  // In a real app we might invoke SystemNavigator.pop()
-                                }
-                              },
-                              itemBuilder: (context) => [
-                                const PopupMenuItem(
-                                  value: 'home',
-                                  child: Row(
-                                    children: [
-                                      Icon(Icons.home, color: Colors.white),
-                                      SizedBox(width: 10),
-                                      Text(
-                                        'Home Screen',
-                                        style: TextStyle(color: Colors.white),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const PopupMenuItem(
-                                  value: 'exit',
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.exit_to_app,
-                                        color: Colors.white,
-                                      ),
-                                      SizedBox(width: 10),
-                                      Text(
-                                        'Sair',
-                                        style: TextStyle(color: Colors.white),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
                             ),
                           ],
                         ),
@@ -267,6 +314,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                                                 // Always "Assistir" (Start from 0)
                                                 Expanded(
                                                   child: ElevatedButton.icon(
+                                                    focusNode: _playFocus,
                                                     onPressed: () async {
                                                       await Navigator.push(
                                                         context,
@@ -304,6 +352,16 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                                                             BorderRadius.circular(
                                                               5,
                                                             ),
+                                                        side:
+                                                            (_isAndroidTV &&
+                                                                _playFocus
+                                                                    .hasFocus)
+                                                            ? const BorderSide(
+                                                                color: Colors
+                                                                    .tealAccent,
+                                                                width: 3,
+                                                              )
+                                                            : BorderSide.none,
                                                       ),
                                                     ),
                                                   ),
@@ -314,6 +372,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                                                   const SizedBox(width: 8),
                                                   Expanded(
                                                     child: ElevatedButton.icon(
+                                                      focusNode: _resumeFocus,
                                                       onPressed: () async {
                                                         await Navigator.push(
                                                           context,
@@ -352,6 +411,16 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                                                               BorderRadius.circular(
                                                                 5,
                                                               ),
+                                                          side:
+                                                              (_isAndroidTV &&
+                                                                  _resumeFocus
+                                                                      .hasFocus)
+                                                              ? const BorderSide(
+                                                                  color: Colors
+                                                                      .tealAccent,
+                                                                  width: 3,
+                                                                )
+                                                              : BorderSide.none,
                                                         ),
                                                       ),
                                                     ),
@@ -379,23 +448,27 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                                                 orElse: () => widget.channel,
                                               )
                                               .isFavorite;
-                                          return IconButton(
-                                            padding: EdgeInsets.zero,
-                                            constraints: const BoxConstraints(),
-                                            icon: Icon(
-                                              isFav
-                                                  ? Icons.favorite
-                                                  : Icons.favorite_border,
-                                              color: isFav
-                                                  ? Colors.red
-                                                  : Colors.white,
-                                              size: 32,
-                                            ),
-                                            onPressed: () {
+                                          return FocusableActionWrapper(
+                                            showFocusHighlight: _isAndroidTV,
+                                            onTap: () {
                                               provider.toggleFavorite(
                                                 widget.channel,
                                               );
                                             },
+                                            child: Padding(
+                                              padding: const EdgeInsets.all(
+                                                8.0,
+                                              ),
+                                              child: Icon(
+                                                isFav
+                                                    ? Icons.favorite
+                                                    : Icons.favorite_border,
+                                                color: isFav
+                                                    ? Colors.red
+                                                    : Colors.white,
+                                                size: 32,
+                                              ),
+                                            ),
                                           );
                                         },
                                       ),
