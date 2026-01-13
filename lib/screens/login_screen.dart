@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_android_tv_text_field/native_textfield_tv.dart';
@@ -127,6 +129,16 @@ class _LoginScreenState extends State<LoginScreen> {
       body: LayoutBuilder(
         builder: (context, constraints) {
           final isSmallScreen = constraints.maxHeight < 500;
+
+          bool useStandardTextField = kIsWeb;
+          if (!kIsWeb) {
+            // Use standard text field on iOS, or on Android if it's a small screen (phone/tablet likely)
+            // or if the user explicitly prefers it for touch devices.
+            // Using isSmallScreen as a proxy for 'Mobile/Tablet' layout.
+            if (Platform.isIOS || (Platform.isAndroid && isSmallScreen)) {
+              useStandardTextField = true;
+            }
+          }
 
           // Compact visual settings
           final double verticalSpacing = isSmallScreen ? 10 : 16;
@@ -280,6 +292,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   nextFocus: _userFocus,
                                   hint: 'Nome qualquer',
                                   isDense: isSmallScreen,
+                                  useStandardTextField: useStandardTextField,
                                 ),
                                 SizedBox(height: verticalSpacing),
 
@@ -289,6 +302,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   nextFocus: _passFocus,
                                   hint: 'Nome de usuário',
                                   isDense: isSmallScreen,
+                                  useStandardTextField: useStandardTextField,
                                 ),
                                 SizedBox(height: verticalSpacing),
 
@@ -306,6 +320,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                     );
                                   },
                                   isDense: isSmallScreen,
+                                  useStandardTextField: useStandardTextField,
                                 ),
                                 SizedBox(height: verticalSpacing),
 
@@ -315,6 +330,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   nextFocus: _btnFocus,
                                   hint: 'http://url_aqui.com:porta',
                                   isDense: isSmallScreen,
+                                  useStandardTextField: useStandardTextField,
                                 ),
 
                                 SizedBox(height: buttonSpacing),
@@ -383,6 +399,7 @@ class _LoginScreenState extends State<LoginScreen> {
     bool isPasswordVisible = false,
     VoidCallback? onVisibilityChanged,
     bool isDense = false,
+    bool useStandardTextField = false,
   }) {
     final isFocused = focusNode.hasFocus;
     return Column(
@@ -404,25 +421,51 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           child: Stack(
             children: [
-              AndroidTVTextField(
-                key: ValueKey('${hint}_$isPasswordVisible'),
-                controller: controller,
-                hint: hint,
-                focusNode: focusNode,
-                textColor: Colors.black,
-                obscureText: isPassword && !isPasswordVisible,
-                backgroundColor: Colors
-                    .transparent, // Use transparent to show AnimatedContainer background
-                focuesedBorderColor: Colors
-                    .transparent, // Disable native border to use our custom one
-                onSubmitted: (_) {
-                  if (nextFocus != null) {
-                    FocusScope.of(context).requestFocus(nextFocus);
-                  } else {
-                    _handleLogin();
-                  }
-                },
-              ),
+              if (useStandardTextField)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 0,
+                  ),
+                  child: TextFormField(
+                    controller: controller, // Assuming compatible
+                    focusNode: focusNode,
+                    decoration: InputDecoration(
+                      hintText: hint,
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 15),
+                    ),
+                    obscureText: isPassword && !isPasswordVisible,
+                    style: const TextStyle(color: Colors.black),
+                    onFieldSubmitted: (_) {
+                      if (nextFocus != null) {
+                        FocusScope.of(context).requestFocus(nextFocus);
+                      } else {
+                        _handleLogin();
+                      }
+                    },
+                  ),
+                )
+              else
+                AndroidTVTextField(
+                  key: ValueKey('${hint}_$isPasswordVisible'),
+                  controller: controller,
+                  hint: hint,
+                  focusNode: focusNode,
+                  textColor: Colors.black,
+                  obscureText: isPassword && !isPasswordVisible,
+                  backgroundColor: Colors
+                      .transparent, // Use transparent to show AnimatedContainer background
+                  focuesedBorderColor: Colors
+                      .transparent, // Disable native border to use our custom one
+                  onSubmitted: (_) {
+                    if (nextFocus != null) {
+                      FocusScope.of(context).requestFocus(nextFocus);
+                    } else {
+                      _handleLogin();
+                    }
+                  },
+                ),
               if (isPassword)
                 Positioned(
                   right: 0,
@@ -443,7 +486,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ],
           ),
         ),
-        if (isPassword)
+        if (isPassword && !useStandardTextField)
           const Padding(
             padding: EdgeInsets.only(top: 4.0),
             child: Text(

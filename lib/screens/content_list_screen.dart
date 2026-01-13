@@ -1,9 +1,14 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_android_tv_text_field/native_textfield_tv.dart';
 import 'package:provider/provider.dart';
 import '../providers/channel_provider.dart';
 import '../providers/auth_provider.dart';
 import '../models/channel.dart';
 import '../widgets/channel_grid_item.dart';
+import '../widgets/category_list_item.dart';
 import '../services/playback_service.dart';
 import '../services/iptv_service.dart';
 import 'player_screen.dart';
@@ -37,10 +42,11 @@ class _ContentListScreenState extends State<ContentListScreen> {
   bool _isContentSearchVisible = false;
   SortOption _currentSort = SortOption.defaultSort;
 
-  final TextEditingController _categorySearchController =
-      TextEditingController();
-  final TextEditingController _contentSearchController =
-      TextEditingController();
+  late NativeTextFieldController _categorySearchController;
+  late NativeTextFieldController _contentSearchController;
+
+  late FocusNode _categorySearchFocus;
+  late FocusNode _contentSearchFocus;
 
   @override
   void initState() {
@@ -48,6 +54,58 @@ class _ContentListScreenState extends State<ContentListScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadContent();
     });
+
+    _categorySearchController = NativeTextFieldController();
+    _contentSearchController = NativeTextFieldController();
+
+    // Initialize FocusNodes with Key Events for D-Pad Navigation
+    _categorySearchFocus = FocusNode(onKeyEvent: _handleKeyEvent)
+      ..addListener(() {
+        // Sync text if needed, mostly for Native field if it behaves oddly
+      });
+    _contentSearchFocus = FocusNode(onKeyEvent: _handleKeyEvent)
+      ..addListener(() {});
+
+    _categorySearchController.addListener(() {
+      setState(() {
+        _categorySearchQuery = _categorySearchController.text;
+      });
+    });
+
+    _contentSearchController.addListener(() {
+      setState(() {
+        _contentSearchQuery = _contentSearchController.text;
+      });
+    });
+  }
+
+  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is KeyDownEvent) {
+      if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+        FocusScope.of(context).nextFocus();
+        return KeyEventResult.handled;
+      }
+      if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+        FocusScope.of(context).previousFocus();
+        return KeyEventResult.handled;
+      }
+
+      // ENTER/Select -> Close Keyboard (User Request)
+      if (event.logicalKey == LogicalKeyboardKey.enter ||
+          event.logicalKey == LogicalKeyboardKey.select) {
+        SystemChannels.textInput.invokeMethod('TextInput.hide');
+        return KeyEventResult.handled;
+      }
+
+      // BACK/Escape -> Exit Editing manually
+      if (event.logicalKey == LogicalKeyboardKey.goBack ||
+          event.logicalKey == LogicalKeyboardKey.escape) {
+        SystemChannels.textInput.invokeMethod('TextInput.hide');
+        node.unfocus();
+        return KeyEventResult.handled;
+      }
+    }
+    return KeyEventResult.ignored;
   }
 
   Set<String> _resumeIds = {};
@@ -56,6 +114,8 @@ class _ContentListScreenState extends State<ContentListScreen> {
   void dispose() {
     _categorySearchController.dispose();
     _contentSearchController.dispose();
+    _categorySearchFocus.dispose();
+    _contentSearchFocus.dispose();
     super.dispose();
   }
 
@@ -358,10 +418,17 @@ class _ContentListScreenState extends State<ContentListScreen> {
 
             return LayoutBuilder(
               builder: (context, constraints) {
-                final totalWidth = constraints.maxWidth;
-                // If screen is "small" (like mobile landscape), reduce sidebar width
-                final bool isMobile = totalWidth < 900;
-                final double sidebarWidth = isMobile ? 250.0 : 300.0;
+                // --- CHECK DISPLAY MODE ---
+                final bool isSmallScreen = constraints.maxWidth < 900;
+                final double sidebarWidth = isSmallScreen ? 250.0 : 300.0;
+
+                bool useStandardTextField = kIsWeb;
+                if (!kIsWeb) {
+                  // Use standard text field on iOS, or on Android if it's a small screen
+                  if (Platform.isIOS || (Platform.isAndroid && isSmallScreen)) {
+                    useStandardTextField = true;
+                  }
+                }
 
                 return Row(
                   children: [
@@ -379,12 +446,15 @@ class _ContentListScreenState extends State<ContentListScreen> {
                             alignment: Alignment.centerLeft,
                             child: Row(
                               children: [
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.arrow_back,
-                                    color: Colors.white,
+                                _FocusableActionWrapper(
+                                  onTap: () => Navigator.pop(context),
+                                  child: const Padding(
+                                    padding: EdgeInsets.all(8.0),
+                                    child: Icon(
+                                      Icons.arrow_back,
+                                      color: Colors.white,
+                                    ),
                                   ),
-                                  onPressed: () => Navigator.pop(context),
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(
@@ -407,36 +477,11 @@ class _ContentListScreenState extends State<ContentListScreen> {
                               horizontal: 12.0,
                               vertical: 8.0,
                             ),
-                            child: TextField(
+                            child: _buildResponsiveSearchField(
                               controller: _categorySearchController,
-                              style: const TextStyle(color: Colors.white),
-                              decoration: InputDecoration(
-                                hintText: 'Pesquisa...',
-                                hintStyle: TextStyle(
-                                  color: Colors.grey[400],
-                                  fontSize: 13,
-                                ),
-                                prefixIcon: const Icon(
-                                  Icons.search,
-                                  color: Colors.grey,
-                                  size: 20,
-                                ),
-                                prefixIconConstraints: const BoxConstraints(
-                                  minWidth: 36,
-                                  minHeight: 40,
-                                ),
-                                isDense: true,
-                                contentPadding: const EdgeInsets.symmetric(
-                                  vertical: 10,
-                                  horizontal: 8,
-                                ),
-                                filled: true,
-                                fillColor: Colors.grey[850],
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(4),
-                                  borderSide: BorderSide.none,
-                                ),
-                              ),
+                              focusNode: _categorySearchFocus,
+                              hintText: 'Pesquisa...',
+                              isStandard: useStandardTextField,
                               onChanged: (value) =>
                                   setState(() => _categorySearchQuery = value),
                             ),
@@ -469,41 +514,12 @@ class _ContentListScreenState extends State<ContentListScreen> {
                                       .length;
                                 }
 
-                                return Container(
-                                  color: isSelected
-                                      ? const Color(0xFF00838F)
-                                      : Colors
-                                            .transparent, // Cyan 800 for selection
-                                  child: ListTile(
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                      vertical: 0,
-                                    ),
-                                    title: Text(
-                                      category,
-                                      style: TextStyle(
-                                        color: isSelected
-                                            ? Colors.white
-                                            : Colors.grey[300],
-                                        fontWeight: isSelected
-                                            ? FontWeight.bold
-                                            : FontWeight.normal,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                    trailing: Text(
-                                      '$count',
-                                      style: TextStyle(
-                                        color: isSelected
-                                            ? Colors.white
-                                            : Colors.grey[600],
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                    selected: isSelected,
-                                    onTap: () => setState(
-                                      () => _selectedCategory = category,
-                                    ),
+                                return CategoryListItem(
+                                  title: category,
+                                  count: '$count',
+                                  isSelected: isSelected,
+                                  onTap: () => setState(
+                                    () => _selectedCategory = category,
                                   ),
                                 );
                               },
@@ -552,26 +568,14 @@ class _ContentListScreenState extends State<ContentListScreen> {
                                     children: [
                                       if (_isContentSearchVisible)
                                         Expanded(
-                                          child: TextField(
+                                          child: _buildResponsiveSearchField(
                                             controller:
                                                 _contentSearchController,
+                                            focusNode: _contentSearchFocus,
+                                            hintText:
+                                                'Procurar ${_selectedCategory}...',
+                                            isStandard: useStandardTextField,
                                             autofocus: true,
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 16,
-                                            ),
-                                            decoration: InputDecoration(
-                                              hintText:
-                                                  'Procurar ${_selectedCategory}...',
-                                              hintStyle: const TextStyle(
-                                                color: Colors.grey,
-                                              ),
-                                              border: InputBorder.none,
-                                              prefixIcon: const Icon(
-                                                Icons.search,
-                                                color: Colors.grey,
-                                              ),
-                                            ),
                                             onChanged: (value) => setState(
                                               () => _contentSearchQuery = value,
                                             ),
@@ -579,120 +583,131 @@ class _ContentListScreenState extends State<ContentListScreen> {
                                         ),
 
                                       if (!_isContentSearchVisible)
-                                        IconButton(
-                                          icon: const Icon(
-                                            Icons.search,
-                                            size: 28,
-                                            color: Colors.white,
+                                        if (!_isContentSearchVisible)
+                                          _FocusableActionWrapper(
+                                            onTap: () => setState(
+                                              () => _isContentSearchVisible =
+                                                  true,
+                                            ),
+                                            child: const Padding(
+                                              padding: EdgeInsets.all(8.0),
+                                              child: Icon(
+                                                Icons.search,
+                                                size: 28,
+                                                color: Colors.white,
+                                              ),
+                                            ),
                                           ),
-                                          onPressed: () => setState(
-                                            () =>
-                                                _isContentSearchVisible = true,
-                                          ),
-                                        ),
 
                                       if (_isContentSearchVisible)
-                                        IconButton(
-                                          icon: const Icon(
-                                            Icons.close,
-                                            color: Colors.white,
+                                        if (_isContentSearchVisible)
+                                          _FocusableActionWrapper(
+                                            onTap: () {
+                                              setState(() {
+                                                _contentSearchQuery = '';
+                                                _contentSearchController
+                                                    .clear();
+                                                _isContentSearchVisible = false;
+                                              });
+                                            },
+                                            child: const Padding(
+                                              padding: EdgeInsets.all(8.0),
+                                              child: Icon(
+                                                Icons.close,
+                                                color: Colors.white,
+                                              ),
+                                            ),
                                           ),
-                                          onPressed: () {
-                                            setState(() {
-                                              _contentSearchQuery = '';
-                                              _contentSearchController.clear();
-                                              _isContentSearchVisible = false;
-                                            });
-                                          },
-                                        ),
 
                                       const SizedBox(width: 8),
 
-                                      PopupMenuButton<String>(
-                                        icon: const Icon(
-                                          Icons.more_vert,
-                                          size: 28,
-                                          color: Colors.white,
-                                        ),
-                                        color: Colors.grey[900],
-                                        onSelected: (value) {
-                                          if (value == 'refresh') {
-                                            // Force refresh when manually clicking refresh in the list
-                                            final auth = context
-                                                .read<AuthProvider>();
-                                            final provider = context
-                                                .read<ChannelProvider>();
-                                            final user = auth.currentUser;
+                                      _FocusableActionWrapper(
+                                        child: PopupMenuButton<String>(
+                                          icon: const Icon(
+                                            Icons.more_vert,
+                                            size: 28,
+                                            color: Colors.white,
+                                          ),
+                                          color: Colors.grey[900],
+                                          onSelected: (value) {
+                                            if (value == 'refresh') {
+                                              // Force refresh when manually clicking refresh in the list
+                                              final auth = context
+                                                  .read<AuthProvider>();
+                                              final provider = context
+                                                  .read<ChannelProvider>();
+                                              final user = auth.currentUser;
 
-                                            if (user != null) {
-                                              if (widget.type ==
-                                                  ContentType.live) {
-                                                provider.loadXtream(
-                                                  user.url,
-                                                  user.username,
-                                                  user.password,
-                                                  forceRefresh: true,
-                                                );
-                                              } else if (widget.type ==
-                                                  ContentType.movie) {
-                                                provider.loadVod(
-                                                  user.url,
-                                                  user.username,
-                                                  user.password,
-                                                  forceRefresh: true,
-                                                );
-                                              } else if (widget.type ==
-                                                  ContentType.series) {
-                                                provider.loadSeries(
-                                                  user.url,
-                                                  user.username,
-                                                  user.password,
-                                                  forceRefresh: true,
-                                                );
+                                              if (user != null) {
+                                                if (widget.type ==
+                                                    ContentType.live) {
+                                                  provider.loadXtream(
+                                                    user.url,
+                                                    user.username,
+                                                    user.password,
+                                                    forceRefresh: true,
+                                                  );
+                                                } else if (widget.type ==
+                                                    ContentType.movie) {
+                                                  provider.loadVod(
+                                                    user.url,
+                                                    user.username,
+                                                    user.password,
+                                                    forceRefresh: true,
+                                                  );
+                                                } else if (widget.type ==
+                                                    ContentType.series) {
+                                                  provider.loadSeries(
+                                                    user.url,
+                                                    user.username,
+                                                    user.password,
+                                                    forceRefresh: true,
+                                                  );
+                                                }
                                               }
+                                            } else if (value == 'sort') {
+                                              _showSortDialog();
                                             }
-                                          } else if (value == 'sort') {
-                                            _showSortDialog();
-                                          }
-                                        },
-                                        itemBuilder: (context) => [
-                                          const PopupMenuItem(
-                                            value: 'sort',
-                                            child: Row(
-                                              children: [
-                                                Icon(
-                                                  Icons.sort,
-                                                  color: Colors.white,
-                                                ),
-                                                SizedBox(width: 10),
-                                                Text(
-                                                  'Ordenar',
-                                                  style: TextStyle(
+                                          },
+                                          itemBuilder: (context) => [
+                                            const PopupMenuItem(
+                                              value: 'sort',
+                                              child: Row(
+                                                children: [
+                                                  Icon(
+                                                    Icons.sort,
                                                     color: Colors.white,
                                                   ),
-                                                ),
-                                              ],
+                                                  SizedBox(width: 10),
+                                                  Text(
+                                                    'Ordenar',
+                                                    style: TextStyle(
+                                                      color: Colors.white,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
                                             ),
-                                          ),
-                                          const PopupMenuItem(
-                                            value: 'refresh',
-                                            child: Row(
-                                              children: [
-                                                Icon(
-                                                  Icons.refresh,
-                                                  color: Colors.white,
-                                                ),
-                                                SizedBox(width: 10),
-                                                Text(
-                                                  'Atualizar Lista',
-                                                  style: TextStyle(
+                                            const PopupMenuItem(
+                                              value: 'refresh',
+                                              child: Row(
+                                                children: [
+                                                  Icon(
+                                                    Icons.refresh,
                                                     color: Colors.white,
                                                   ),
-                                                ),
-                                              ],
+                                                  SizedBox(width: 10),
+                                                  Text(
+                                                    'Atualizar Lista',
+                                                    style: TextStyle(
+                                                      color: Colors.white,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
                                             ),
-                                          ),
-                                        ],
+                                          ],
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -1059,6 +1074,124 @@ class _ContentListScreenState extends State<ContentListScreen> {
               },
             );
           },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildResponsiveSearchField({
+    required NativeTextFieldController controller,
+    required FocusNode focusNode,
+    required String hintText,
+    required bool isStandard,
+    required Function(String) onChanged,
+    bool autofocus = false,
+  }) {
+    if (isStandard) {
+      // Standard TextField (Mobile/Web)
+      return TextField(
+        controller: controller,
+        focusNode: focusNode,
+        autofocus: autofocus,
+        style: const TextStyle(color: Colors.white, fontSize: 14),
+        decoration: InputDecoration(
+          hintText: hintText,
+          hintStyle: TextStyle(color: Colors.grey[400], fontSize: 12),
+          prefixIcon: const Icon(Icons.search, color: Colors.grey, size: 20),
+          prefixIconConstraints: const BoxConstraints(
+            minWidth: 36,
+            minHeight: 40,
+          ),
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(
+            vertical: 10,
+            horizontal: 8,
+          ),
+          filled: true,
+          fillColor: Colors.grey[850],
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(4),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(4),
+            borderSide: const BorderSide(color: Colors.tealAccent, width: 2),
+          ),
+        ),
+        onChanged: onChanged,
+      );
+    } else {
+      // Android TV Native Field
+      return Container(
+        height: 50,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: Colors.grey[850],
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: AndroidTVTextField(
+          controller: controller,
+          focusNode: focusNode,
+          hint: hintText,
+          textColor: Colors.white,
+          backgroundColor: Colors.transparent,
+          focuesedBorderColor: Colors.tealAccent,
+          onSubmitted: (_) {
+            FocusScope.of(context).unfocus();
+            FocusScope.of(context).nextFocus();
+          },
+        ),
+      );
+    }
+  }
+}
+
+class _FocusableActionWrapper extends StatefulWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+
+  const _FocusableActionWrapper({required this.child, this.onTap});
+
+  @override
+  State<_FocusableActionWrapper> createState() =>
+      _FocusableActionWrapperState();
+}
+
+class _FocusableActionWrapperState extends State<_FocusableActionWrapper> {
+  bool _isFocused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Focus(
+      onFocusChange: (hasFocus) {
+        setState(() {
+          _isFocused = hasFocus;
+        });
+      },
+      onKeyEvent: (node, event) {
+        if (widget.onTap != null &&
+            event is KeyDownEvent &&
+            (event.logicalKey == LogicalKeyboardKey.enter ||
+                event.logicalKey == LogicalKeyboardKey.select)) {
+          widget.onTap!();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            color: _isFocused
+                ? Colors.tealAccent.withOpacity(0.2)
+                : Colors.transparent,
+            border: Border.all(
+              color: _isFocused ? Colors.tealAccent : Colors.transparent,
+              width: 2,
+            ),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: widget.child,
         ),
       ),
     );
