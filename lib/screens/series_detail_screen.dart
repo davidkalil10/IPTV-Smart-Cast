@@ -15,6 +15,10 @@ import '../services/iptv_service.dart';
 import 'player_screen.dart';
 
 import '../services/playback_service.dart';
+import 'package:flutter/foundation.dart';
+import 'dart:io';
+import 'package:device_info_plus/device_info_plus.dart';
+import '../widgets/focusable_action_wrapper.dart';
 
 class SeriesDetailScreen extends StatefulWidget {
   final Channel channel;
@@ -38,12 +42,42 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
   String? _selectedSeason;
 
   String? _resumeEpisodeId;
+  bool _isAndroidTV = false;
+
+  final FocusNode _playFocus = FocusNode();
+  final FocusNode _resumeFocus = FocusNode();
+  final FocusNode _seasonFocus = FocusNode();
 
   @override
   void initState() {
     super.initState();
-
+    _playFocus.addListener(_updateState);
+    _resumeFocus.addListener(_updateState);
+    _seasonFocus.addListener(_updateState);
+    _checkDeviceType();
     _fetchDetails();
+  }
+
+  void _updateState() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _playFocus.dispose();
+    _resumeFocus.dispose();
+    _seasonFocus.dispose();
+    super.dispose();
+  }
+
+  Future<void> _checkDeviceType() async {
+    if (kIsWeb || !Platform.isAndroid) return;
+    final deviceInfo = DeviceInfoPlugin();
+    final androidInfo = await deviceInfo.androidInfo;
+    final hasLeanback = androidInfo.systemFeatures.contains(
+      'android.software.leanback',
+    );
+    if (mounted) setState(() => _isAndroidTV = hasLeanback);
   }
 
   Future<void> _fetchDetails() async {
@@ -267,18 +301,17 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
 
                           children: [
-                            IconButton(
-                              icon: const Icon(
-                                Icons.arrow_back,
-
-                                color: Colors.white,
-
-                                size: 28,
+                            FocusableActionWrapper(
+                              showFocusHighlight: _isAndroidTV,
+                              onTap: () => Navigator.maybePop(context),
+                              child: const Padding(
+                                padding: EdgeInsets.all(8.0),
+                                child: Icon(
+                                  Icons.arrow_back,
+                                  color: Colors.white,
+                                  size: 28,
+                                ),
                               ),
-
-                              onPressed: () {
-                                Navigator.maybePop(context);
-                              },
                             ),
 
                             Expanded(
@@ -299,74 +332,77 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                               ),
                             ),
 
-                            PopupMenuButton<String>(
-                              icon: const Icon(
-                                Icons.more_vert,
+                            FocusableActionWrapper(
+                              showFocusHighlight: _isAndroidTV,
+                              child: PopupMenuButton<String>(
+                                icon: const Icon(
+                                  Icons.more_vert,
 
-                                color: Colors.white,
+                                  color: Colors.white,
 
-                                size: 28,
+                                  size: 28,
+                                ),
+
+                                color: Colors.grey[900],
+
+                                onSelected: (value) {
+                                  if (value == 'home') {
+                                    Navigator.popUntil(
+                                      context,
+
+                                      (route) => route.isFirst,
+                                    );
+                                  } else if (value == 'exit') {
+                                    Navigator.popUntil(
+                                      context,
+
+                                      (route) => route.isFirst,
+                                    );
+                                  }
+                                },
+
+                                itemBuilder: (context) => [
+                                  const PopupMenuItem(
+                                    value: 'home',
+
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.home, color: Colors.white),
+
+                                        SizedBox(width: 10),
+
+                                        Text(
+                                          'Home Screen',
+
+                                          style: TextStyle(color: Colors.white),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+
+                                  const PopupMenuItem(
+                                    value: 'exit',
+
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.exit_to_app,
+
+                                          color: Colors.white,
+                                        ),
+
+                                        SizedBox(width: 10),
+
+                                        Text(
+                                          'Sair',
+
+                                          style: TextStyle(color: Colors.white),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ),
-
-                              color: Colors.grey[900],
-
-                              onSelected: (value) {
-                                if (value == 'home') {
-                                  Navigator.popUntil(
-                                    context,
-
-                                    (route) => route.isFirst,
-                                  );
-                                } else if (value == 'exit') {
-                                  Navigator.popUntil(
-                                    context,
-
-                                    (route) => route.isFirst,
-                                  );
-                                }
-                              },
-
-                              itemBuilder: (context) => [
-                                const PopupMenuItem(
-                                  value: 'home',
-
-                                  child: Row(
-                                    children: [
-                                      Icon(Icons.home, color: Colors.white),
-
-                                      SizedBox(width: 10),
-
-                                      Text(
-                                        'Home Screen',
-
-                                        style: TextStyle(color: Colors.white),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-
-                                const PopupMenuItem(
-                                  value: 'exit',
-
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.exit_to_app,
-
-                                        color: Colors.white,
-                                      ),
-
-                                      SizedBox(width: 10),
-
-                                      Text(
-                                        'Sair',
-
-                                        style: TextStyle(color: Colors.white),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
                             ),
                           ],
                         ),
@@ -615,10 +651,18 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                                                             ),
 
                                                             side:
-                                                                const BorderSide(
-                                                                  color: Colors
-                                                                      .white24,
-                                                                ),
+                                                                _isAndroidTV &&
+                                                                    _resumeFocus
+                                                                        .hasFocus
+                                                                ? const BorderSide(
+                                                                    color: Colors
+                                                                        .greenAccent,
+                                                                    width: 3,
+                                                                  )
+                                                                : const BorderSide(
+                                                                    color: Colors
+                                                                        .white24,
+                                                                  ),
 
                                                             minimumSize:
                                                                 const Size(
@@ -627,6 +671,8 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                                                                   45,
                                                                 ),
                                                           ),
+                                                          focusNode:
+                                                              _resumeFocus,
                                                         ),
                                                       );
                                                     },
@@ -661,9 +707,19 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                                                             ),
                                                       ),
 
-                                                      side: const BorderSide(
-                                                        color: Colors.white24,
-                                                      ),
+                                                      side:
+                                                          _isAndroidTV &&
+                                                              _playFocus
+                                                                  .hasFocus
+                                                          ? const BorderSide(
+                                                              color: Colors
+                                                                  .greenAccent,
+                                                              width: 3,
+                                                            )
+                                                          : const BorderSide(
+                                                              color: Colors
+                                                                  .white24,
+                                                            ),
 
                                                       minimumSize: const Size(
                                                         140,
@@ -671,6 +727,7 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                                                         45,
                                                       ), // Fixed width, not expanded
                                                     ),
+                                                    focusNode: _playFocus,
 
                                                     child: Text(
                                                       'Play - S$_selectedSeason:E1',
@@ -704,53 +761,71 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                                                             5,
                                                           ),
 
-                                                      border: Border.all(
-                                                        color: Colors.white24,
-                                                      ),
+                                                      border:
+                                                          _isAndroidTV &&
+                                                              _seasonFocus
+                                                                  .hasFocus
+                                                          ? Border.all(
+                                                              color: Colors
+                                                                  .greenAccent,
+                                                              width: 3,
+                                                            )
+                                                          : Border.all(
+                                                              color: Colors
+                                                                  .white24,
+                                                            ),
                                                     ),
 
-                                                    child: DropdownButtonHideUnderline(
-                                                      child: DropdownButton<String>(
-                                                        dropdownColor:
-                                                            Colors.grey[900],
+                                                    child: Focus(
+                                                      focusNode: _seasonFocus,
+                                                      child: DropdownButtonHideUnderline(
+                                                        child: DropdownButton<String>(
+                                                          dropdownColor:
+                                                              Colors.grey[900],
 
-                                                        value: _selectedSeason,
+                                                          value:
+                                                              _selectedSeason,
 
-                                                        icon: const Icon(
-                                                          Icons.arrow_drop_down,
+                                                          icon: const Icon(
+                                                            Icons
+                                                                .arrow_drop_down,
 
-                                                          color: Colors.white,
-                                                        ),
+                                                            color: Colors.white,
+                                                          ),
 
-                                                        style: const TextStyle(
-                                                          color: Colors.white,
+                                                          style:
+                                                              const TextStyle(
+                                                                color: Colors
+                                                                    .white,
 
-                                                          fontWeight:
-                                                              FontWeight.bold,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
 
-                                                          fontSize: 13,
-                                                        ),
+                                                                fontSize: 13,
+                                                              ),
 
-                                                        items: _seasons.map((
-                                                          s,
-                                                        ) {
-                                                          return DropdownMenuItem(
-                                                            value: s,
+                                                          items: _seasons.map((
+                                                            s,
+                                                          ) {
+                                                            return DropdownMenuItem(
+                                                              value: s,
 
-                                                            child: Text(
-                                                              'Temporada - $s',
-                                                            ),
-                                                          );
-                                                        }).toList(),
-
-                                                        onChanged: (val) {
-                                                          if (val != null)
-                                                            setState(
-                                                              () =>
-                                                                  _selectedSeason =
-                                                                      val,
+                                                              child: Text(
+                                                                'Temporada - $s',
+                                                              ),
                                                             );
-                                                        },
+                                                          }).toList(),
+
+                                                          onChanged: (val) {
+                                                            if (val != null)
+                                                              setState(
+                                                                () =>
+                                                                    _selectedSeason =
+                                                                        val,
+                                                              );
+                                                          },
+                                                        ),
                                                       ),
                                                     ),
                                                   ),
@@ -778,28 +853,29 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                                                   )
                                                   .isFavorite;
 
-                                              return IconButton(
-                                                padding: EdgeInsets.zero,
-
-                                                constraints:
-                                                    const BoxConstraints(),
-
-                                                icon: Icon(
-                                                  isFav
-                                                      ? Icons.favorite
-                                                      : Icons.favorite_border,
-
-                                                  color: isFav
-                                                      ? Colors.red
-                                                      : Colors.white,
-
-                                                  size: 30,
-                                                ),
-
-                                                onPressed: () =>
+                                              return FocusableActionWrapper(
+                                                showFocusHighlight:
+                                                    _isAndroidTV,
+                                                onTap: () =>
                                                     provider.toggleFavorite(
                                                       widget.channel,
                                                     ),
+                                                child: Padding(
+                                                  padding: const EdgeInsets.all(
+                                                    8.0,
+                                                  ),
+                                                  child: Icon(
+                                                    isFav
+                                                        ? Icons.favorite
+                                                        : Icons.favorite_border,
+
+                                                    color: isFav
+                                                        ? Colors.red
+                                                        : Colors.white,
+
+                                                    size: 30,
+                                                  ),
+                                                ),
                                               );
                                             },
                                           ),
@@ -944,7 +1020,8 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
                                         ? epRating / 2
                                         : epRating;
 
-                                    return InkWell(
+                                    return FocusableActionWrapper(
+                                      showFocusHighlight: _isAndroidTV,
                                       onTap: () => _playEpisode(ep),
 
                                       child: Container(
