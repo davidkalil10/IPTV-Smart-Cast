@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/channel.dart';
@@ -25,162 +27,200 @@ class ChannelGridItem extends StatefulWidget {
 
 class _ChannelGridItemState extends State<ChannelGridItem> {
   bool _isFocused = false;
+  Timer? _longPressTimer;
+  bool _isLongPress = false;
+
+  @override
+  void dispose() {
+    _longPressTimer?.cancel();
+    super.dispose();
+  }
+
+  void _handleTap() {
+    if (widget.onTap != null)
+      widget.onTap!();
+    else {
+      if (widget.channel.type == 'movie') {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => MovieDetailScreen(channel: widget.channel),
+          ),
+        );
+      } else if (widget.channel.type == 'series') {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => SeriesDetailScreen(channel: widget.channel),
+          ),
+        );
+      } else {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => PlayerScreen(channel: widget.channel),
+          ),
+        );
+      }
+    }
+  }
+
+  void _handleLongPress() {
+    if (widget.onLongPress != null)
+      widget.onLongPress!();
+    else {
+      context.read<ChannelProvider>().toggleFavorite(widget.channel);
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            widget.channel.isFavorite
+                ? '${widget.channel.name} removido dos favoritos'
+                : '${widget.channel.name} adicionado aos favoritos',
+          ),
+          duration: const Duration(seconds: 1),
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedScale(
-      scale: _isFocused ? 1.1 : 1.0,
-      duration: const Duration(milliseconds: 200),
-      child: Card(
-        elevation: _isFocused ? 12 : 4,
-        color: Colors.grey[900],
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-          side: _isFocused
-              ? const BorderSide(color: Colors.purpleAccent, width: 3)
-              : BorderSide.none,
-        ),
-        child: InkWell(
-          onTap:
-              widget.onTap ??
-              () {
-                if (widget.channel.type == 'movie') {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) =>
-                          MovieDetailScreen(channel: widget.channel),
-                    ),
-                  );
-                } else if (widget.channel.type == 'series') {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) =>
-                          SeriesDetailScreen(channel: widget.channel),
-                    ),
-                  );
-                } else {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) =>
-                          PlayerScreen(channel: widget.channel),
-                    ),
-                  );
-                }
-              },
-          onLongPress:
-              widget.onLongPress ??
-              () {
-                context.read<ChannelProvider>().toggleFavorite(widget.channel);
-                ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      widget.channel.isFavorite
-                          ? '${widget.channel.name} removido dos favoritos'
-                          : '${widget.channel.name} adicionado aos favoritos',
-                    ),
-                    duration: const Duration(seconds: 1),
-                  ),
-                );
-              },
-          onFocusChange: (value) {
-            setState(() {
-              _isFocused = value;
+    return Focus(
+      onFocusChange: (value) {
+        setState(() {
+          _isFocused = value;
+        });
+      },
+      onKeyEvent: (node, event) {
+        if (event.logicalKey == LogicalKeyboardKey.select ||
+            event.logicalKey == LogicalKeyboardKey.enter) {
+          if (event is KeyDownEvent) {
+            if (_longPressTimer != null && _longPressTimer!.isActive)
+              return KeyEventResult.handled;
+            _isLongPress = false;
+            _longPressTimer = Timer(const Duration(milliseconds: 500), () {
+              _isLongPress = true;
+              _handleLongPress();
             });
-          },
-          child: Stack(
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(8),
-                      ),
-                      child:
-                          widget.channel.logoUrl != null &&
-                              widget.channel.logoUrl!.isNotEmpty
-                          ? CachedNetworkImage(
-                              imageUrl: widget.channel.logoUrl!,
-                              fit: BoxFit.cover,
-                              placeholder: (context, url) => const Center(
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
+            return KeyEventResult.handled;
+          } else if (event is KeyUpEvent) {
+            _longPressTimer?.cancel();
+            if (!_isLongPress) {
+              _handleTap();
+            }
+            return KeyEventResult.handled;
+          }
+        }
+        return KeyEventResult.ignored;
+      },
+      child: AnimatedScale(
+        scale: _isFocused ? 1.1 : 1.0,
+        duration: const Duration(milliseconds: 200),
+        child: Card(
+          elevation: _isFocused ? 12 : 4,
+          color: Colors.grey[900],
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+            side: _isFocused
+                ? const BorderSide(color: Colors.purpleAccent, width: 3)
+                : BorderSide.none,
+          ),
+          child: InkWell(
+            onTap: _handleTap,
+            onLongPress: _handleLongPress,
+            canRequestFocus: false, // Let the parent Focus widget handle focus
+            child: Stack(
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(8),
+                        ),
+                        child:
+                            widget.channel.logoUrl != null &&
+                                widget.channel.logoUrl!.isNotEmpty
+                            ? CachedNetworkImage(
+                                imageUrl: widget.channel.logoUrl!,
+                                fit: BoxFit.cover,
+                                placeholder: (context, url) => const Center(
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                                errorWidget: (context, url, error) =>
+                                    const Center(
+                                      child: Icon(
+                                        Icons.tv,
+                                        size: 50,
+                                        color: Colors.white54,
+                                      ),
+                                    ),
+                              )
+                            : const Center(
+                                child: Icon(
+                                  Icons.tv,
+                                  size: 50,
+                                  color: Colors.white54,
                                 ),
                               ),
-                              errorWidget: (context, url, error) =>
-                                  const Center(
-                                    child: Icon(
-                                      Icons.tv,
-                                      size: 50,
-                                      color: Colors.white54,
-                                    ),
-                                  ),
-                            )
-                          : const Center(
-                              child: Icon(
-                                Icons.tv,
-                                size: 50,
-                                color: Colors.white54,
-                              ),
-                            ),
+                      ),
                     ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: Text(
-                      widget.channel.name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Text(
+                        widget.channel.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (widget.channel.rating != null && widget.channel.rating! > 0)
+                  Positioned(
+                    top: 8,
+                    left: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.blue,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        widget.channel.rating!.toStringAsFixed(1),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
-                ],
-              ),
-              if (widget.channel.rating != null && widget.channel.rating! > 0)
-                Positioned(
-                  top: 8,
-                  left: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.blue,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      widget.channel.rating!.toStringAsFixed(1),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
+                if (widget.channel.isFavorite)
+                  const Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Icon(
+                      Icons.favorite,
+                      color: Colors.red,
+                      size: 20,
+                      shadows: [Shadow(color: Colors.black, blurRadius: 4)],
                     ),
                   ),
-                ),
-              if (widget.channel.isFavorite)
-                const Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Icon(
-                    Icons.favorite,
-                    color: Colors.red,
-                    size: 20,
-                    shadows: [Shadow(color: Colors.black, blurRadius: 4)],
-                  ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
