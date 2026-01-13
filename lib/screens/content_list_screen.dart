@@ -14,6 +14,7 @@ import '../services/iptv_service.dart';
 import 'player_screen.dart';
 import 'movie_detail_screen.dart';
 import 'series_detail_screen.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 
 enum SortOption { defaultSort, topAdded, az, za }
 
@@ -41,6 +42,7 @@ class _ContentListScreenState extends State<ContentListScreen> {
   String _contentSearchQuery = '';
   bool _isContentSearchVisible = false;
   SortOption _currentSort = SortOption.defaultSort;
+  bool _isAndroidTV = false;
 
   late NativeTextFieldController _categorySearchController;
   late NativeTextFieldController _contentSearchController;
@@ -56,6 +58,8 @@ class _ContentListScreenState extends State<ContentListScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadContent();
     });
+
+    _checkDeviceType();
 
     _categorySearchController = NativeTextFieldController();
     _contentSearchController = NativeTextFieldController();
@@ -202,6 +206,27 @@ class _ContentListScreenState extends State<ContentListScreen> {
     });
   }
 
+  Future<void> _checkDeviceType() async {
+    if (kIsWeb || !Platform.isAndroid) {
+      setState(() => _isAndroidTV = false);
+      return;
+    }
+
+    try {
+      final deviceInfo = DeviceInfoPlugin();
+      final androidInfo = await deviceInfo.androidInfo;
+      // Check for Leanback feature (TV)
+      final isTV = androidInfo.systemFeatures.contains(
+        'android.software.leanback',
+      );
+      if (mounted) {
+        setState(() => _isAndroidTV = isTV);
+      }
+    } catch (e) {
+      debugPrint('Error checking device type: $e');
+    }
+  }
+
   List<String> _getCategories(List<Channel> channels) {
     if (channels.isEmpty) return ['TODOS', 'FAVORITOS'];
 
@@ -277,7 +302,6 @@ class _ContentListScreenState extends State<ContentListScreen> {
         filtered = filtered.reversed.toList();
         break;
       case SortOption.defaultSort:
-      default:
         break;
     }
 
@@ -437,12 +461,9 @@ class _ContentListScreenState extends State<ContentListScreen> {
                 final bool isSmallScreen = constraints.maxWidth < 900;
                 final double sidebarWidth = isSmallScreen ? 250.0 : 300.0;
 
-                bool useStandardTextField = kIsWeb;
-                if (!kIsWeb) {
-                  // Use standard text field on iOS, or on Android if it's a small screen
-                  if (Platform.isIOS || (Platform.isAndroid && isSmallScreen)) {
-                    useStandardTextField = true;
-                  }
+                bool useStandardTextField = true;
+                if (_isAndroidTV) {
+                  useStandardTextField = false;
                 }
 
                 return Row(
