@@ -5,6 +5,7 @@ class CategoryListItem extends StatefulWidget {
   final String count;
   final bool isSelected;
   final VoidCallback onTap;
+  final FocusNode? focusNode;
 
   const CategoryListItem({
     super.key,
@@ -12,6 +13,7 @@ class CategoryListItem extends StatefulWidget {
     required this.count,
     required this.isSelected,
     required this.onTap,
+    this.focusNode,
   });
 
   @override
@@ -24,6 +26,7 @@ class _CategoryListItemState extends State<CategoryListItem> {
   @override
   Widget build(BuildContext context) {
     return InkWell(
+      focusNode: widget.focusNode,
       onTap: widget.onTap,
       onFocusChange: (value) => setState(() => _isFocused = value),
       child: Container(

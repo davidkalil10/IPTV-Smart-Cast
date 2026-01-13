@@ -46,7 +46,9 @@ class _ContentListScreenState extends State<ContentListScreen> {
   late NativeTextFieldController _contentSearchController;
 
   late FocusNode _categorySearchFocus;
+
   late FocusNode _contentSearchFocus;
+  late FocusNode _firstCategoryFocus;
 
   @override
   void initState() {
@@ -57,6 +59,7 @@ class _ContentListScreenState extends State<ContentListScreen> {
 
     _categorySearchController = NativeTextFieldController();
     _contentSearchController = NativeTextFieldController();
+    _firstCategoryFocus = FocusNode();
 
     // Initialize FocusNodes with Key Events for D-Pad Navigation
     _categorySearchFocus = FocusNode(onKeyEvent: _handleKeyEvent)
@@ -116,6 +119,7 @@ class _ContentListScreenState extends State<ContentListScreen> {
     _contentSearchController.dispose();
     _categorySearchFocus.dispose();
     _contentSearchFocus.dispose();
+    _firstCategoryFocus.dispose();
     super.dispose();
   }
 
@@ -184,7 +188,18 @@ class _ContentListScreenState extends State<ContentListScreen> {
           });
         }
       });
+
+      // Request Focus on First Category after load
+      _requestInitialFocus();
     }
+  }
+
+  void _requestInitialFocus() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _firstCategoryFocus.requestFocus();
+      }
+    });
   }
 
   List<String> _getCategories(List<Channel> channels) {
@@ -515,6 +530,9 @@ class _ContentListScreenState extends State<ContentListScreen> {
                                 }
 
                                 return CategoryListItem(
+                                  focusNode: index == 0
+                                      ? _firstCategoryFocus
+                                      : null,
                                   title: category,
                                   count: '$count',
                                   isSelected: isSelected,
@@ -585,10 +603,20 @@ class _ContentListScreenState extends State<ContentListScreen> {
                                       if (!_isContentSearchVisible)
                                         if (!_isContentSearchVisible)
                                           _FocusableActionWrapper(
-                                            onTap: () => setState(
-                                              () => _isContentSearchVisible =
-                                                  true,
-                                            ),
+                                            onTap: () {
+                                              setState(() {
+                                                _isContentSearchVisible = true;
+                                              });
+                                              WidgetsBinding.instance
+                                                  .addPostFrameCallback((_) {
+                                                    _contentSearchFocus
+                                                        .requestFocus();
+                                                    SystemChannels.textInput
+                                                        .invokeMethod(
+                                                          'TextInput.show',
+                                                        );
+                                                  });
+                                            },
                                             child: const Padding(
                                               padding: EdgeInsets.all(8.0),
                                               child: Icon(
