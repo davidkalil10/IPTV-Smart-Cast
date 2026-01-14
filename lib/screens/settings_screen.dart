@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui'; // For BackdropFilter
+import 'package:provider/provider.dart';
+import '../providers/auth_provider.dart';
 import '../services/dns_service.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -53,8 +55,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         return 'Cloudflare (1.1.1.1)';
       case DnsProviderType.google:
         return 'Google (8.8.8.8)';
-      case DnsProviderType.quad9:
-        return 'Quad9 (9.9.9.9)';
+      case DnsProviderType.adguard:
+        return 'AdGuard (Bloqueio de Ads)';
     }
   }
 
@@ -66,8 +68,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         return 'Rápido e privado.';
       case DnsProviderType.google:
         return 'Confiável e estável.';
-      case DnsProviderType.quad9:
-        return 'Focado em segurança.';
+      case DnsProviderType.adguard:
+        return 'Focado em segurança e sem anúncios.';
     }
   }
 
@@ -79,7 +81,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         return Icons.cloud_queue;
       case DnsProviderType.google:
         return Icons.public;
-      case DnsProviderType.quad9:
+      case DnsProviderType.adguard:
         return Icons.security;
     }
   }
@@ -156,12 +158,141 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
                 // List of Cards
                 ...DnsProviderType.values.map((type) => _buildDnsCard(type)),
+
+                const SizedBox(height: 32),
+
+                // Test DNS Button
+                Center(
+                  child: ElevatedButton.icon(
+                    onPressed: _testDnsResolution,
+                    icon: const Icon(Icons.speed, color: Colors.white),
+                    label: const Text(
+                      'Testar Resolução DNS',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF00BFA5).withOpacity(0.2),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 16,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: const BorderSide(
+                          color: Color(0xFF00BFA5),
+                          width: 1,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _testDnsResolution() async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      // 1. Determine Hostname
+      String hostname = 'google.com';
+      String testInfos = 'Domínio de Teste: google.com';
+
+      final auth = context.read<AuthProvider>();
+      if (auth.currentUser != null && auth.currentUser!.url.isNotEmpty) {
+        try {
+          final uri = Uri.parse(auth.currentUser!.url);
+          if (uri.host.isNotEmpty) {
+            hostname = uri.host;
+            testInfos = 'Servidor IPTV: $hostname';
+          }
+        } catch (e) {
+          // Fallback to google.com if parsing fails
+        }
+      }
+
+      final startTime = DateTime.now();
+      // Resolve the target hostname
+      final ip = await DnsService().resolve(hostname);
+      final duration = DateTime.now().difference(startTime).inMilliseconds;
+
+      if (mounted) {
+        Navigator.pop(context); // Close loading
+
+        // Determine status
+        final isSystem = _currentProvider == DnsProviderType.system;
+        final isOriginal = ip == hostname;
+
+        String message;
+        Color color;
+        IconData icon;
+
+        if (isOriginal) {
+          if (isSystem && ip == hostname) {
+            message =
+                "$testInfos\n\nUsando DNS do Sistema.\nNão foi possível obter o IP (Nativo).";
+            color = Colors.grey;
+            icon = Icons.info;
+          } else {
+            message =
+                "$testInfos\n\nFalha ao resolver via DNS Personalizado.\nFallback para Sistema.";
+            color = Colors.orange;
+            icon = Icons.warning;
+          }
+        } else {
+          message =
+              "$testInfos\n\nSucesso! Resolvido via ${_getProviderName(_currentProvider)}.\nIP: $ip\nTempo: ${duration}ms";
+          color = const Color(0xFF00BFA5);
+          icon = Icons.check_circle;
+        }
+
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: Colors.grey[900],
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Row(
+              children: [
+                Icon(icon, color: color),
+                const SizedBox(width: 10),
+                const Text(
+                  "Resultado do Teste",
+                  style: TextStyle(color: Colors.white),
+                ),
+              ],
+            ),
+            content: Text(
+              message,
+              style: const TextStyle(color: Colors.white70),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("OK", style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Erro no teste: $e")));
+      }
+    }
   }
 
   Widget _buildDnsCard(DnsProviderType type) {

@@ -89,7 +89,7 @@ class CombinedLiveView extends StatelessWidget {
                                     previewChannel?.id == channel.id;
 
                                 return FocusableActionWrapper(
-                                  showFocusHighlight: true,
+                                  showFocusHighlight: isAndroidTV,
                                   focusNode: index == 0
                                       ? firstContentFocus
                                       : null,
