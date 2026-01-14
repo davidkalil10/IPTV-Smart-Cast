@@ -11,6 +11,7 @@ import '../services/playback_service.dart';
 import '../widgets/focusable_action_wrapper.dart';
 import 'dart:async';
 import 'package:simple_pip_mode/simple_pip.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class PlayerScreen extends StatefulWidget {
   final Channel channel;
@@ -48,6 +49,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   bool _isError = false;
   String _errorMessage = '';
+  bool _isInitialized = false;
   double? _overrideAspectRatio;
   BoxFit _overrideFit = BoxFit.contain;
   int _subtitleFontSize = 48;
@@ -81,8 +83,17 @@ class _PlayerScreenState extends State<PlayerScreen> {
     // Create a Player instance
     _player = Player();
 
-    // Create a VideoController to handle video output from [Player]
-    _videoController = VideoController(_player);
+    // Check HW Decoding preference
+    final prefs = await SharedPreferences.getInstance();
+    final enableHw = prefs.getBool('enable_hw_acceleration') ?? true;
+
+    // Create a VideoController with config
+    _videoController = VideoController(
+      _player,
+      configuration: VideoControllerConfiguration(
+        enableHardwareAcceleration: enableHw,
+      ),
+    );
 
     // Play the media (start paused if we are going to seek)
     await _player.open(
@@ -101,7 +112,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
       }
     });
 
-    setState(() {});
+    if (mounted) {
+      setState(() {
+        _isInitialized = true;
+      });
+    }
 
     if (widget.startPosition != null) {
       debugPrint(
@@ -521,6 +536,15 @@ class _PlayerScreenState extends State<PlayerScreen> {
               ),
             ],
           ),
+        ),
+      );
+    }
+
+    if (!_isInitialized) {
+      return const Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(
+          child: CircularProgressIndicator(color: Colors.purpleAccent),
         ),
       );
     }

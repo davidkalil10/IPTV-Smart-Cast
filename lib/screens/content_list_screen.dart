@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_android_tv_text_field/native_textfield_tv.dart';
 import 'package:provider/provider.dart';
 import '../providers/channel_provider.dart';
@@ -59,7 +60,7 @@ class _ContentListScreenState extends State<ContentListScreen> {
 
   // Preview Player State
   late final Player _previewPlayer;
-  late final VideoController _previewController;
+  late VideoController _previewController;
   Channel? _previewChannel;
 
   @override
@@ -100,6 +101,27 @@ class _ContentListScreenState extends State<ContentListScreen> {
         _contentSearchQuery = _contentSearchController.text;
       });
     });
+
+    _applyVideoSettings();
+  }
+
+  Future<void> _applyVideoSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    final enableHw = prefs.getBool('enable_hw_acceleration') ?? true;
+
+    // Only re-create if disabled (default is enabled)
+    if (!enableHw) {
+      if (mounted) {
+        setState(() {
+          _previewController = VideoController(
+            _previewPlayer,
+            configuration: VideoControllerConfiguration(
+              enableHardwareAcceleration: false,
+            ),
+          );
+        });
+      }
+    }
   }
 
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {

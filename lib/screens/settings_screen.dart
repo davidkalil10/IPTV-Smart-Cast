@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui'; // For BackdropFilter
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/auth_provider.dart';
 import '../services/dns_service.dart';
 
@@ -13,16 +14,27 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   DnsProviderType _currentProvider = DnsProviderType.system;
+  bool _isPipEnabled = false; // Assuming this was intended to be added as well
+  bool _hwDecoding = true;
 
   @override
   void initState() {
     super.initState();
-    _loadCurrentProvider();
+    _loadSettings();
   }
 
-  Future<void> _loadCurrentProvider() async {
-    await DnsService().init();
-    setState(() => _currentProvider = DnsService().currentProvider);
+  Future<void> _loadSettings() async {
+    await DnsService().init(); // Initialize DNS service first
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _currentProvider = DnsProviderType.values.firstWhere(
+        (e) => e.toString() == prefs.getString('selected_dns_provider'),
+        orElse: () => DnsProviderType.system,
+      );
+      _hwDecoding = prefs.getBool('enable_hw_acceleration') ?? true;
+      // _isPipEnabled would also be loaded here if it were saved
+    });
+    // Check PiP availability (existing logic, if any, would go here)
   }
 
   Future<void> _updateProvider(DnsProviderType provider) async {
@@ -91,7 +103,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('Configurações de DNS'),
+        title: const Text('Configurações'),
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
@@ -147,11 +159,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 // Subtitle (Original Title removed, Description font increased)
                 Text(
-                  'Otimize sua conexão escolhendo um servidor DNS de alta performance.',
+                  'Configuração de DNS',
                   style: TextStyle(
-                    fontSize: 18, // Increased from 14
-                    color: Colors.white.withOpacity(0.8),
-                    height: 1.5,
+                    fontSize: 20, // Increased size for header
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -187,6 +199,52 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                 ),
+
+                const SizedBox(height: 32),
+
+                // Player Settings
+                const Text(
+                  'Player',
+                  style: TextStyle(
+                    fontSize: 18,
+                    color: Colors.white70,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.white10),
+                  ),
+                  child: SwitchListTile(
+                    title: const Text(
+                      'Aceleração de Hardware',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    subtitle: const Text(
+                      'Melhora performance em dispositivos potentes. Desative se houver travamentos na TV.',
+                      style: TextStyle(color: Colors.white54, fontSize: 12),
+                    ),
+                    value: _hwDecoding,
+                    activeColor: const Color(0xFF00BFA5),
+                    secondary: const Icon(
+                      Icons.memory,
+                      color: Color(0xFF00BFA5),
+                    ),
+                    onChanged: (value) async {
+                      setState(() => _hwDecoding = value);
+                      final prefs = await SharedPreferences.getInstance();
+                      await prefs.setBool('enable_hw_acceleration', value);
+                    },
+                  ),
+                ),
+
+                const SizedBox(height: 32),
               ],
             ),
           ),
