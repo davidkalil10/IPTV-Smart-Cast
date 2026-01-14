@@ -79,6 +79,10 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
   final FocusNode _backgroundFocusNode = FocusNode();
   final FocusNode _playFocusNode = FocusNode();
   final FocusNode _fontSizeFocusNode = FocusNode();
+  final FocusNode _settingsBackFocusNode = FocusNode();
+  final FocusNode _episodesFocusNode = FocusNode();
+  final FocusNode _aspectRatioFocusNode = FocusNode();
+  final FocusNode _speedFocusNode = FocusNode();
 
   @override
   void initState() {
@@ -220,6 +224,10 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
     _backgroundFocusNode.dispose();
     _playFocusNode.dispose();
     _fontSizeFocusNode.dispose();
+    _settingsBackFocusNode.dispose();
+    _episodesFocusNode.dispose();
+    _aspectRatioFocusNode.dispose();
+    _speedFocusNode.dispose();
     super.dispose();
   }
 
@@ -228,6 +236,16 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
       _showSettings = !_showSettings;
       _showControls = !_showSettings;
     });
+    if (_showSettings) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _settingsBackFocusNode.requestFocus();
+      });
+    } else {
+      // Return focus to Play button when closing settings
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _playFocusNode.requestFocus();
+      });
+    }
   }
 
   void _toggleControls() {
@@ -361,21 +379,36 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
               ),
               const Divider(height: 1),
               ...[0.75, 1.0, 1.25, 1.5, 1.75, 2.0].map((speed) {
-                return ListTile(
-                  leading: Icon(
-                    _playbackSpeed == speed
-                        ? Icons.radio_button_checked
-                        : Icons.radio_button_unchecked,
-                    color: Colors.grey[800],
-                  ),
-                  title: Text(
-                    '${speed == 1.0 ? "1x (Normal)" : "${speed}x"}',
-                    style: const TextStyle(color: Colors.black),
-                  ),
+                return FocusableActionWrapper(
+                  showFocusHighlight: _isAndroidTV,
                   onTap: () {
                     widget.player.setRate(speed);
                     Navigator.pop(context);
                   },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          _playbackSpeed == speed
+                              ? Icons.radio_button_checked
+                              : Icons.radio_button_unchecked,
+                          color: Colors.grey[800],
+                        ),
+                        const SizedBox(width: 16),
+                        Text(
+                          '${speed == 1.0 ? "1x (Normal)" : "${speed}x"}',
+                          style: const TextStyle(
+                            color: Colors.black,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 );
               }),
             ],
@@ -676,14 +709,15 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                            FocusableActionWrapper(
-                              showFocusHighlight: _isAndroidTV,
-                              onTap: () {},
-                              child: const Padding(
-                                padding: EdgeInsets.all(8.0),
-                                child: Icon(Icons.cast, color: Colors.white),
+                            if (!_isAndroidTV)
+                              FocusableActionWrapper(
+                                showFocusHighlight: _isAndroidTV,
+                                onTap: () {},
+                                child: const Padding(
+                                  padding: EdgeInsets.all(8.0),
+                                  child: Icon(Icons.cast, color: Colors.white),
+                                ),
                               ),
-                            ),
                             if (widget.channel.type != 'live')
                               FocusableActionWrapper(
                                 showFocusHighlight: _isAndroidTV,
@@ -864,17 +898,33 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
                                   child: _isSeekMode
                                       ? Focus(
                                           onKeyEvent: (node, event) {
-                                            if (event is KeyDownEvent &&
-                                                (event.logicalKey ==
-                                                        LogicalKeyboardKey
-                                                            .escape ||
-                                                    event.logicalKey ==
-                                                        LogicalKeyboardKey
-                                                            .goBack)) {
-                                              setState(
-                                                () => _isSeekMode = false,
-                                              );
-                                              return KeyEventResult.handled;
+                                            if (event is KeyDownEvent) {
+                                              if (event.logicalKey ==
+                                                      LogicalKeyboardKey
+                                                          .escape ||
+                                                  event.logicalKey ==
+                                                      LogicalKeyboardKey
+                                                          .goBack) {
+                                                setState(
+                                                  () => _isSeekMode = false,
+                                                );
+                                                return KeyEventResult.handled;
+                                              }
+                                              if (event.logicalKey ==
+                                                  LogicalKeyboardKey
+                                                      .arrowDown) {
+                                                if (widget.channel.type ==
+                                                        'series' ||
+                                                    widget.channel.type ==
+                                                        'series_episode') {
+                                                  _episodesFocusNode
+                                                      .requestFocus();
+                                                } else {
+                                                  _aspectRatioFocusNode
+                                                      .requestFocus();
+                                                }
+                                                return KeyEventResult.handled;
+                                              }
                                             }
                                             return KeyEventResult.ignored;
                                           },
@@ -953,54 +1003,67 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
                                 ),
                               ],
                             ),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                              children: [
-                                if (widget.channel.type == 'series' ||
-                                    widget.channel.type == 'series_episode')
+                            FocusTraversalGroup(
+                              policy: WidgetOrderTraversalPolicy(),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  if (widget.channel.type == 'series' ||
+                                      widget.channel.type ==
+                                          'series_episode') ...[
+                                    _buildBottomAction(
+                                      Icons.video_library,
+                                      'EPISÓDIOS',
+                                      widget.onShowEpisodes,
+                                      focusNode: _episodesFocusNode,
+                                    ),
+                                    const SizedBox(width: 16),
+                                  ],
                                   _buildBottomAction(
-                                    Icons.video_library,
-                                    'EPISÓDIOS',
-                                    widget.onShowEpisodes,
+                                    Icons.aspect_ratio,
+                                    'Proporção..',
+                                    _cycleAspectRatio,
+                                    focusNode: _aspectRatioFocusNode,
                                   ),
-                                _buildBottomAction(
-                                  Icons.aspect_ratio,
-                                  'Proporção..',
-                                  _cycleAspectRatio,
-                                ),
-                                _buildBottomAction(
-                                  Icons.speed,
-                                  'Velocidade..',
-                                  _showSpeedMenu,
-                                ),
-                                if (widget.channel.type == 'series' ||
-                                    widget.channel.type == 'series_episode')
-                                  FocusableActionWrapper(
-                                    showFocusHighlight: _isAndroidTV,
-                                    onTap: widget.onNextEpisode,
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 8,
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          const Icon(
-                                            Icons.skip_next,
-                                            color: Colors.white,
-                                          ),
-                                          const SizedBox(width: 8),
-                                          const Text(
-                                            'Próximo ep..',
-                                            style: TextStyle(
+                                  const SizedBox(width: 16),
+                                  _buildBottomAction(
+                                    Icons.speed,
+                                    'Velocidade..',
+                                    _showSpeedMenu,
+                                    focusNode: _speedFocusNode,
+                                  ),
+                                  if (widget.channel.type == 'series' ||
+                                      widget.channel.type ==
+                                          'series_episode') ...[
+                                    const SizedBox(width: 16),
+                                    FocusableActionWrapper(
+                                      showFocusHighlight: _isAndroidTV,
+                                      onTap: widget.onNextEpisode,
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 8,
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            const Icon(
+                                              Icons.skip_next,
                                               color: Colors.white,
                                             ),
-                                          ),
-                                        ],
+                                            const SizedBox(width: 8),
+                                            const Text(
+                                              'Próximo ep..',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ),
-                                  ),
-                              ],
+                                  ],
+                                ],
+                              ),
                             ),
                           ],
                         ),
@@ -1034,6 +1097,7 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
                                   children: [
                                     FocusableActionWrapper(
                                       showFocusHighlight: _isAndroidTV,
+                                      focusNode: _settingsBackFocusNode,
                                       onTap: _toggleSettings,
                                       child: const Padding(
                                         padding: EdgeInsets.all(8.0),
@@ -1241,9 +1305,15 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
     );
   }
 
-  Widget _buildBottomAction(IconData icon, String label, VoidCallback onTap) {
+  Widget _buildBottomAction(
+    IconData icon,
+    String label,
+    VoidCallback onTap, {
+    FocusNode? focusNode,
+  }) {
     return FocusableActionWrapper(
       showFocusHighlight: _isAndroidTV,
+      focusNode: focusNode,
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

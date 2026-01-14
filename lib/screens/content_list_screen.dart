@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
 import 'package:flutter_android_tv_text_field/native_textfield_tv.dart';
 import 'package:provider/provider.dart';
 import '../providers/channel_provider.dart';
@@ -52,10 +54,22 @@ class _ContentListScreenState extends State<ContentListScreen> {
 
   late FocusNode _contentSearchFocus;
   late FocusNode _firstCategoryFocus;
+  late FocusNode _firstContentFocus; // Focus for the channel list
+
+  // Preview Player State
+  late final Player _previewPlayer;
+  late final VideoController _previewController;
+  Channel? _previewChannel;
 
   @override
   void initState() {
     super.initState();
+    _firstContentFocus = FocusNode();
+
+    // Initialize Preview Player
+    _previewPlayer = Player();
+    _previewController = VideoController(_previewPlayer);
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadContent();
     });
@@ -125,6 +139,8 @@ class _ContentListScreenState extends State<ContentListScreen> {
     _categorySearchFocus.dispose();
     _contentSearchFocus.dispose();
     _firstCategoryFocus.dispose();
+    _firstContentFocus.dispose();
+    _previewPlayer.dispose();
     super.dispose();
   }
 
@@ -572,554 +588,11 @@ class _ContentListScreenState extends State<ContentListScreen> {
                     ),
 
                     // Right Content (Grid)
+                    // Right Content
                     Expanded(
-                      child: Container(
-                        color: Colors.black,
-                        child: Column(
-                          children: [
-                            // Header Right
-                            Container(
-                              height: 60,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 20,
-                              ),
-                              decoration: BoxDecoration(
-                                border: Border(
-                                  bottom: BorderSide(color: Colors.grey[800]!),
-                                ),
-                              ),
-                              child: Stack(
-                                alignment: Alignment.center,
-                                children: [
-                                  // Centered Title
-                                  if (!_isContentSearchVisible)
-                                    Center(
-                                      child: Text(
-                                        _selectedCategory.toUpperCase(),
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-
-                                  // Right Actions
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.end,
-                                    children: [
-                                      if (_isContentSearchVisible)
-                                        Expanded(
-                                          child: _buildResponsiveSearchField(
-                                            controller:
-                                                _contentSearchController,
-                                            focusNode: _contentSearchFocus,
-                                            hintText:
-                                                'Procurar ${_selectedCategory}...',
-                                            isStandard: useStandardTextField,
-                                            autofocus: true,
-                                            onChanged: (value) => setState(
-                                              () => _contentSearchQuery = value,
-                                            ),
-                                          ),
-                                        ),
-
-                                      if (!_isContentSearchVisible)
-                                        FocusableActionWrapper(
-                                          showFocusHighlight: _isAndroidTV,
-                                          onTap: () {
-                                            setState(() {
-                                              _isContentSearchVisible = true;
-                                            });
-                                            WidgetsBinding.instance
-                                                .addPostFrameCallback((_) {
-                                                  _contentSearchFocus
-                                                      .requestFocus();
-                                                  SystemChannels.textInput
-                                                      .invokeMethod(
-                                                        'TextInput.show',
-                                                      );
-                                                });
-                                          },
-                                          child: const Padding(
-                                            padding: EdgeInsets.all(8.0),
-                                            child: Icon(
-                                              Icons.search,
-                                              size: 28,
-                                              color: Colors.white,
-                                            ),
-                                          ),
-                                        ),
-
-                                      if (_isContentSearchVisible)
-                                        FocusableActionWrapper(
-                                          showFocusHighlight: _isAndroidTV,
-                                          onTap: () {
-                                            setState(() {
-                                              _contentSearchQuery = '';
-                                              _contentSearchController.clear();
-                                              _isContentSearchVisible = false;
-                                            });
-                                          },
-                                          child: const Padding(
-                                            padding: EdgeInsets.all(8.0),
-                                            child: Icon(
-                                              Icons.close,
-                                              color: Colors.white,
-                                            ),
-                                          ),
-                                        ),
-
-                                      const SizedBox(width: 8),
-
-                                      FocusableActionWrapper(
-                                        showFocusHighlight: _isAndroidTV,
-                                        child: PopupMenuButton<String>(
-                                          icon: const Icon(
-                                            Icons.more_vert,
-                                            size: 28,
-                                            color: Colors.white,
-                                          ),
-                                          color: Colors.grey[900],
-                                          onSelected: (value) {
-                                            if (value == 'refresh') {
-                                              // Force refresh when manually clicking refresh in the list
-                                              final auth = context
-                                                  .read<AuthProvider>();
-                                              final provider = context
-                                                  .read<ChannelProvider>();
-                                              final user = auth.currentUser;
-
-                                              if (user != null) {
-                                                if (widget.type ==
-                                                    ContentType.live) {
-                                                  provider.loadXtream(
-                                                    user.url,
-                                                    user.username,
-                                                    user.password,
-                                                    forceRefresh: true,
-                                                  );
-                                                } else if (widget.type ==
-                                                    ContentType.movie) {
-                                                  provider.loadVod(
-                                                    user.url,
-                                                    user.username,
-                                                    user.password,
-                                                    forceRefresh: true,
-                                                  );
-                                                } else if (widget.type ==
-                                                    ContentType.series) {
-                                                  provider.loadSeries(
-                                                    user.url,
-                                                    user.username,
-                                                    user.password,
-                                                    forceRefresh: true,
-                                                  );
-                                                }
-                                              }
-                                            } else if (value == 'sort') {
-                                              _showSortDialog();
-                                            }
-                                          },
-                                          itemBuilder: (context) => [
-                                            const PopupMenuItem(
-                                              value: 'sort',
-                                              child: Row(
-                                                children: [
-                                                  Icon(
-                                                    Icons.sort,
-                                                    color: Colors.white,
-                                                  ),
-                                                  SizedBox(width: 10),
-                                                  Text(
-                                                    'Ordenar',
-                                                    style: TextStyle(
-                                                      color: Colors.white,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                            const PopupMenuItem(
-                                              value: 'refresh',
-                                              child: Row(
-                                                children: [
-                                                  Icon(
-                                                    Icons.refresh,
-                                                    color: Colors.white,
-                                                  ),
-                                                  SizedBox(width: 10),
-                                                  Text(
-                                                    'Atualizar Lista',
-                                                    style: TextStyle(
-                                                      color: Colors.white,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-
-                            // Grid
-                            Expanded(
-                              child: displayedContent.isEmpty
-                                  ? const Center(
-                                      child: Text(
-                                        'Nenhum conteúdo',
-                                        style: TextStyle(color: Colors.grey),
-                                      ),
-                                    )
-                                  : LayoutBuilder(
-                                      builder: (context, constraints) {
-                                        // Force 5 columns even on mobile as requested
-                                        // The user says "3 instead of 5" on mobile, meaning they want 5.
-                                        int crossAxisCount = 5;
-
-                                        return GridView.builder(
-                                          padding: const EdgeInsets.all(8),
-                                          gridDelegate:
-                                              SliverGridDelegateWithFixedCrossAxisCount(
-                                                crossAxisCount: crossAxisCount,
-                                                childAspectRatio:
-                                                    0.70, // Slightly taller aspect ratio since width is tighter
-                                                crossAxisSpacing: 8,
-                                                mainAxisSpacing: 8,
-                                              ),
-                                          itemCount: displayedContent.length,
-                                          itemBuilder: (context, index) {
-                                            return ChannelGridItem(
-                                              channel: displayedContent[index],
-                                              onTap: () async {
-                                                final channel =
-                                                    displayedContent[index];
-                                                final provider = context
-                                                    .read<ChannelProvider>();
-
-                                                if (_selectedCategory ==
-                                                    'RETOMAR') {
-                                                  // --- RESUME LOGIC ---
-                                                  if (channel.type ==
-                                                      'series') {
-                                                    // SERIES RESUME
-                                                    final lastEpId =
-                                                        PlaybackService()
-                                                            .getLastEpisodeId(
-                                                              channel.id,
-                                                            );
-                                                    if (lastEpId != null) {
-                                                      showDialog(
-                                                        context: context,
-                                                        barrierDismissible:
-                                                            false,
-                                                        builder: (_) =>
-                                                            const Center(
-                                                              child:
-                                                                  CircularProgressIndicator(),
-                                                            ),
-                                                      );
-                                                      try {
-                                                        final service =
-                                                            IptvService();
-                                                        final data = await service
-                                                            .getSeriesInfo(
-                                                              channel.id,
-                                                              provider
-                                                                  .savedUrl!,
-                                                              provider
-                                                                  .savedUser!,
-                                                              provider
-                                                                  .savedPass!,
-                                                            );
-
-                                                        if (mounted)
-                                                          Navigator.pop(
-                                                            context,
-                                                          );
-
-                                                        // Find Episode
-                                                        Map<String, dynamic>?
-                                                        episode;
-                                                        List<dynamic>
-                                                        episodeList = [];
-                                                        String? season;
-                                                        List<String> seasons =
-                                                            [];
-                                                        Map<String, dynamic>
-                                                        episodesMap = {};
-
-                                                        final episodesData =
-                                                            data['episodes'];
-                                                        if (episodesData
-                                                            is Map<
-                                                              String,
-                                                              dynamic
-                                                            >) {
-                                                          episodesMap =
-                                                              episodesData;
-                                                          seasons = episodesMap
-                                                              .keys
-                                                              .toList();
-                                                          // Simple Sort
-                                                          seasons.sort(
-                                                            (a, b) =>
-                                                                (int.tryParse(
-                                                                          a,
-                                                                        ) ??
-                                                                        0)
-                                                                    .compareTo(
-                                                                      int.tryParse(
-                                                                            b,
-                                                                          ) ??
-                                                                          0,
-                                                                    ),
-                                                          );
-
-                                                          for (var k
-                                                              in seasons) {
-                                                            final list =
-                                                                episodesMap[k]
-                                                                    as List;
-                                                            final found = list
-                                                                .firstWhere(
-                                                                  (e) =>
-                                                                      e['id']
-                                                                          .toString() ==
-                                                                      lastEpId,
-                                                                  orElse: () =>
-                                                                      null,
-                                                                );
-                                                            if (found != null) {
-                                                              episode = found;
-                                                              season = k;
-                                                              episodeList =
-                                                                  list;
-                                                              break;
-                                                            }
-                                                          }
-                                                        }
-
-                                                        if (episode != null &&
-                                                            mounted) {
-                                                          final ext =
-                                                              episode['container_extension'] ??
-                                                              'mp4';
-                                                          final url =
-                                                              '${provider.savedUrl}/series/${provider.savedUser}/${provider.savedPass}/$lastEpId.$ext';
-                                                          final epName =
-                                                              'S${season}E${episode['episode_num']}';
-
-                                                          final epChannel = Channel(
-                                                            id: lastEpId,
-                                                            name:
-                                                                '${channel.name} - $epName',
-                                                            streamUrl: url,
-                                                            logoUrl:
-                                                                episode['info']?['movie_image'] ??
-                                                                channel.logoUrl,
-                                                            category: channel
-                                                                .category,
-                                                            type:
-                                                                'series_episode',
-                                                          );
-
-                                                          final progress =
-                                                              PlaybackService()
-                                                                  .getProgress(
-                                                                    lastEpId,
-                                                                  );
-
-                                                          await Navigator.push(
-                                                            context,
-                                                            MaterialPageRoute(
-                                                              builder: (_) => PlayerScreen(
-                                                                channel:
-                                                                    epChannel,
-                                                                startPosition:
-                                                                    Duration(
-                                                                      seconds:
-                                                                          progress,
-                                                                    ),
-                                                                seriesId:
-                                                                    channel.id,
-                                                                episodes:
-                                                                    episodeList,
-                                                                currentEpisodeIndex:
-                                                                    episodeList
-                                                                        .indexOf(
-                                                                          episode,
-                                                                        ),
-                                                                currentSeason:
-                                                                    season,
-                                                                seasons:
-                                                                    seasons,
-                                                                allEpisodesMap:
-                                                                    episodesMap,
-                                                              ),
-                                                            ),
-                                                          );
-                                                        } else if (mounted) {
-                                                          // Fallback if episode not found
-                                                          await Navigator.push(
-                                                            context,
-                                                            MaterialPageRoute(
-                                                              builder: (_) =>
-                                                                  SeriesDetailScreen(
-                                                                    channel:
-                                                                        channel,
-                                                                  ),
-                                                            ),
-                                                          );
-                                                        }
-                                                      } catch (e) {
-                                                        if (mounted) {
-                                                          Navigator.pop(
-                                                            context,
-                                                          ); // Close dialog if error
-                                                          ScaffoldMessenger.of(
-                                                            context,
-                                                          ).showSnackBar(
-                                                            SnackBar(
-                                                              content: Text(
-                                                                "Erro ao carregar série: $e",
-                                                              ),
-                                                            ),
-                                                          );
-                                                        }
-                                                      }
-                                                    } else {
-                                                      // No history? Detail
-                                                      await Navigator.push(
-                                                        context,
-                                                        MaterialPageRoute(
-                                                          builder: (_) =>
-                                                              SeriesDetailScreen(
-                                                                channel:
-                                                                    channel,
-                                                              ),
-                                                        ),
-                                                      );
-                                                    }
-                                                  } else {
-                                                    // MOVIE / LIVE RESUME
-                                                    final progress =
-                                                        PlaybackService()
-                                                            .getProgress(
-                                                              channel.id,
-                                                            );
-                                                    await Navigator.push(
-                                                      context,
-                                                      MaterialPageRoute(
-                                                        builder: (context) =>
-                                                            PlayerScreen(
-                                                              channel: channel,
-                                                              startPosition:
-                                                                  Duration(
-                                                                    seconds:
-                                                                        progress,
-                                                                  ),
-                                                            ),
-                                                      ),
-                                                    );
-                                                  }
-                                                } else {
-                                                  // --- STANDARD NAVIGATION ---
-                                                  if (channel.type == 'movie') {
-                                                    await Navigator.push(
-                                                      context,
-                                                      MaterialPageRoute(
-                                                        builder: (context) =>
-                                                            MovieDetailScreen(
-                                                              channel: channel,
-                                                            ),
-                                                      ),
-                                                    );
-                                                  } else if (channel.type ==
-                                                      'series') {
-                                                    await Navigator.push(
-                                                      context,
-                                                      MaterialPageRoute(
-                                                        builder: (context) =>
-                                                            SeriesDetailScreen(
-                                                              channel: channel,
-                                                            ),
-                                                      ),
-                                                    );
-                                                  } else {
-                                                    await Navigator.push(
-                                                      context,
-                                                      MaterialPageRoute(
-                                                        builder: (context) =>
-                                                            PlayerScreen(
-                                                              channel: channel,
-                                                            ),
-                                                      ),
-                                                    );
-                                                  }
-                                                }
-
-                                                // --- REFRESH ON RETURN ---
-                                                if (mounted) {
-                                                  setState(() {
-                                                    _resumeIds = PlaybackService()
-                                                        .getInProgressContentIds()
-                                                        .toSet();
-                                                  });
-                                                }
-                                              },
-                                              onLongPress:
-                                                  (_selectedCategory ==
-                                                      'RETOMAR')
-                                                  ? () async {
-                                                      final channel =
-                                                          displayedContent[index];
-                                                      await PlaybackService()
-                                                          .removeProgress(
-                                                            channel.id,
-                                                            seriesId:
-                                                                channel.type ==
-                                                                    'series'
-                                                                ? channel.id
-                                                                : null,
-                                                          );
-                                                      if (mounted) {
-                                                        setState(() {
-                                                          _resumeIds =
-                                                              PlaybackService()
-                                                                  .getInProgressContentIds()
-                                                                  .toSet();
-                                                        });
-                                                        ScaffoldMessenger.of(
-                                                          context,
-                                                        ).showSnackBar(
-                                                          SnackBar(
-                                                            content: Text(
-                                                              "${channel.name} removido de Retomar",
-                                                            ),
-                                                            duration:
-                                                                const Duration(
-                                                                  seconds: 1,
-                                                                ),
-                                                          ),
-                                                        );
-                                                      }
-                                                    }
-                                                  : null,
-                                            );
-                                          },
-                                        );
-                                      },
-                                    ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      child: widget.type == ContentType.live
+                          ? _buildLiveLayout(displayedContent)
+                          : _buildGridLayout(displayedContent),
                     ),
                   ],
                 );
@@ -1127,6 +600,567 @@ class _ContentListScreenState extends State<ContentListScreen> {
             );
           },
         ),
+      ),
+    );
+  }
+
+  Future<void> _handleChannelTap(Channel channel) async {
+    final provider = context.read<ChannelProvider>();
+
+    if (_selectedCategory == 'RETOMAR') {
+      // --- RESUME LOGIC ---
+      if (channel.type == 'series') {
+        // SERIES RESUME
+        final lastEpId = PlaybackService().getLastEpisodeId(channel.id);
+        if (lastEpId != null) {
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => const Center(child: CircularProgressIndicator()),
+          );
+          try {
+            final service = IptvService();
+            final data = await service.getSeriesInfo(
+              channel.id,
+              provider.savedUrl!,
+              provider.savedUser!,
+              provider.savedPass!,
+            );
+
+            if (mounted) Navigator.pop(context);
+
+            // Find Episode
+            Map<String, dynamic>? episode;
+            List<dynamic> episodeList = [];
+            String? season;
+            List<String> seasons = [];
+            Map<String, dynamic> episodesMap = {};
+
+            final episodesData = data['episodes'];
+            if (episodesData is Map<String, dynamic>) {
+              episodesMap = episodesData;
+              seasons = episodesMap.keys.toList();
+              // Simple Sort
+              seasons.sort(
+                (a, b) =>
+                    (int.tryParse(a) ?? 0).compareTo(int.tryParse(b) ?? 0),
+              );
+
+              for (var k in seasons) {
+                final list = episodesMap[k] as List;
+                final found = list.firstWhere(
+                  (e) => e['id'].toString() == lastEpId,
+                  orElse: () => null,
+                );
+                if (found != null) {
+                  episode = found;
+                  season = k;
+                  episodeList = list;
+                  break;
+                }
+              }
+            }
+
+            if (episode != null && mounted) {
+              final ext = episode['container_extension'] ?? 'mp4';
+              final url =
+                  '${provider.savedUrl}/series/${provider.savedUser}/${provider.savedPass}/$lastEpId.$ext';
+              final epName = 'S${season}E${episode['episode_num']}';
+
+              final epChannel = Channel(
+                id: lastEpId,
+                name: '${channel.name} - $epName',
+                streamUrl: url,
+                logoUrl: episode['info']?['movie_image'] ?? channel.logoUrl,
+                category: channel.category,
+                type: 'series_episode',
+              );
+
+              final progress = PlaybackService().getProgress(lastEpId);
+
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => PlayerScreen(
+                    channel: epChannel,
+                    startPosition: Duration(seconds: progress),
+                    seriesId: channel.id,
+                    episodes: episodeList,
+                    currentEpisodeIndex: episodeList.indexOf(episode),
+                    currentSeason: season,
+                    seasons: seasons,
+                    allEpisodesMap: episodesMap,
+                  ),
+                ),
+              );
+            } else if (mounted) {
+              // Fallback if episode not found
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => SeriesDetailScreen(channel: channel),
+                ),
+              );
+            }
+          } catch (e) {
+            if (mounted) {
+              Navigator.pop(context); // Close dialog if error
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text("Erro ao carregar série: $e")),
+              );
+            }
+          }
+        } else {
+          // No history? Detail
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => SeriesDetailScreen(channel: channel),
+            ),
+          );
+        }
+      } else {
+        // MOVIE / LIVE RESUME
+        final progress = PlaybackService().getProgress(channel.id);
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => PlayerScreen(
+              channel: channel,
+              startPosition: Duration(seconds: progress),
+            ),
+          ),
+        );
+      }
+    } else {
+      // --- STANDARD NAVIGATION ---
+      if (channel.type == 'movie') {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => MovieDetailScreen(channel: channel),
+          ),
+        );
+      } else if (channel.type == 'series') {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => SeriesDetailScreen(channel: channel),
+          ),
+        );
+      } else {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => PlayerScreen(channel: channel),
+          ),
+        );
+      }
+    }
+
+    // --- REFRESH ON RETURN ---
+    if (mounted) {
+      setState(() {
+        _resumeIds = PlaybackService().getInProgressContentIds().toSet();
+      });
+    }
+  }
+
+  Widget _buildGridLayout(List<Channel> displayedContent) {
+    bool useStandardTextField = !_isAndroidTV;
+
+    return Container(
+      color: Colors.black,
+      child: Column(
+        children: [
+          _buildHeader(useStandardTextField),
+          // Grid
+          Expanded(
+            child: displayedContent.isEmpty
+                ? const Center(
+                    child: Text(
+                      'Nenhum conteúdo',
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  )
+                : LayoutBuilder(
+                    builder: (context, constraints) {
+                      int crossAxisCount = 5;
+                      return GridView.builder(
+                        padding: const EdgeInsets.all(8),
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: crossAxisCount,
+                          childAspectRatio: 0.70,
+                          crossAxisSpacing: 8,
+                          mainAxisSpacing: 8,
+                        ),
+                        itemCount: displayedContent.length,
+                        itemBuilder: (context, index) {
+                          return ChannelGridItem(
+                            channel: displayedContent[index],
+                            onTap: () =>
+                                _handleChannelTap(displayedContent[index]),
+                            onLongPress: (_selectedCategory == 'RETOMAR')
+                                ? () async {
+                                    final channel = displayedContent[index];
+                                    await PlaybackService().removeProgress(
+                                      channel.id,
+                                      seriesId: channel.type == 'series'
+                                          ? channel.id
+                                          : null,
+                                    );
+                                    if (mounted) {
+                                      setState(() {
+                                        _resumeIds = PlaybackService()
+                                            .getInProgressContentIds()
+                                            .toSet();
+                                      });
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            "${channel.name} removido de Retomar",
+                                          ),
+                                          duration: const Duration(seconds: 1),
+                                        ),
+                                      );
+                                    }
+                                  }
+                                : null,
+                          );
+                        },
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLiveLayout(List<Channel> displayedContent) {
+    bool useStandardTextField = !_isAndroidTV;
+
+    return Row(
+      children: [
+        // Column 2: Channel List
+        Expanded(
+          flex: 4,
+          child: Container(
+            color: const Color(0xFF151515),
+            child: Column(
+              children: [
+                _buildHeader(useStandardTextField),
+                Expanded(
+                  child: displayedContent.isEmpty
+                      ? const Center(
+                          child: Text(
+                            'Nenhum canal',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        )
+                      : ListView.separated(
+                          itemCount: displayedContent.length,
+                          separatorBuilder: (_, __) =>
+                              const Divider(height: 1, color: Colors.white10),
+                          itemBuilder: (context, index) {
+                            final channel = displayedContent[index];
+                            final isPreviewing =
+                                _previewChannel?.id == channel.id;
+
+                            return FocusableActionWrapper(
+                              showFocusHighlight: true,
+                              focusNode: index == 0 ? _firstContentFocus : null,
+                              onTap: () {
+                                if (isPreviewing) {
+                                  _handleChannelTap(channel);
+                                } else {
+                                  setState(() {
+                                    _previewChannel = channel;
+                                    _previewPlayer.open(
+                                      Media(channel.streamUrl),
+                                    );
+                                  });
+                                }
+                              },
+                              child: Container(
+                                color: isPreviewing
+                                    ? Colors.blue.withOpacity(0.2)
+                                    : null,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                                child: Row(
+                                  children: [
+                                    SizedBox(
+                                      width: 40,
+                                      height: 40,
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(4),
+                                        child: (channel.logoUrl != null && channel.logoUrl!.isNotEmpty)
+                                            ? Image.network(
+                                                channel.logoUrl!,
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (context, error, stackTrace) =>
+                                                    const Icon(Icons.tv, color: Colors.grey),
+                                              )
+                                            : const Icon(Icons.tv, color: Colors.grey),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Text(
+                                        channel.name,
+                                        style: TextStyle(
+                                          color: isPreviewing
+                                              ? Colors.blue
+                                              : Colors.white,
+                                          fontWeight: isPreviewing
+                                              ? FontWeight.bold
+                                              : FontWeight.normal,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    if (isPreviewing)
+                                      const Icon(
+                                        Icons.play_circle_fill,
+                                        color: Colors.blue,
+                                        size: 20,
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        // Column 3: Preview Area
+        Expanded(
+          flex: 6,
+          child: Column(
+            children: [
+              // Video Preview
+              AspectRatio(
+                aspectRatio: 16 / 9,
+                child: Container(
+                  color: Colors.black,
+                  child: _previewChannel == null
+                      ? const Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.tv, size: 48, color: Colors.grey),
+                              SizedBox(height: 8),
+                              Text(
+                                "Selecione um canal para visualizar",
+                                style: TextStyle(color: Colors.white54),
+                              ),
+                            ],
+                          ),
+                        )
+                      : Video(controller: _previewController),
+                ),
+              ),
+              // EPG Placeholder
+              Expanded(
+                child: Container(
+                  width: double.infinity,
+                  color: const Color(0xFF0A0A0A),
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (_previewChannel != null) ...[
+                        Text(
+                          _previewChannel!.name,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          "Categoria: ${_previewChannel!.category}",
+                          style: TextStyle(color: Colors.grey[400]),
+                        ),
+                        const SizedBox(height: 20),
+                        const Text(
+                          "Guia de Programação (EPG)",
+                          style: TextStyle(
+                            color: Colors.blue,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          "Informações detalhadas do programa atual não estão disponíveis no momento.",
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHeader(bool useStandardTextField) {
+    return Container(
+      height: 60,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.grey[800]!)),
+      ),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Centered Title
+          if (!_isContentSearchVisible)
+            Center(
+              child: Text(
+                _selectedCategory.toUpperCase(),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          // Right Actions
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              if (_isContentSearchVisible)
+                Expanded(
+                  child: _buildResponsiveSearchField(
+                    controller: _contentSearchController,
+                    focusNode: _contentSearchFocus,
+                    hintText: 'Procurar ${_selectedCategory}...',
+                    isStandard: useStandardTextField,
+                    autofocus: true,
+                    onChanged: (value) =>
+                        setState(() => _contentSearchQuery = value),
+                  ),
+                ),
+              if (!_isContentSearchVisible)
+                FocusableActionWrapper(
+                  showFocusHighlight: _isAndroidTV,
+                  onTap: () {
+                    setState(() => _isContentSearchVisible = true);
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      _contentSearchFocus.requestFocus();
+                      SystemChannels.textInput.invokeMethod('TextInput.show');
+                    });
+                  },
+                  child: const Padding(
+                    padding: EdgeInsets.all(8.0),
+                    child: Icon(Icons.search, size: 28, color: Colors.white),
+                  ),
+                ),
+              if (_isContentSearchVisible)
+                FocusableActionWrapper(
+                  showFocusHighlight: _isAndroidTV,
+                  onTap: () {
+                    setState(() {
+                      _contentSearchQuery = '';
+                      _contentSearchController.clear();
+                      _isContentSearchVisible = false;
+                    });
+                  },
+                  child: const Padding(
+                    padding: EdgeInsets.all(8.0),
+                    child: Icon(Icons.close, color: Colors.white),
+                  ),
+                ),
+              const SizedBox(width: 8),
+              FocusableActionWrapper(
+                showFocusHighlight: _isAndroidTV,
+                child: PopupMenuButton<String>(
+                  icon: const Icon(
+                    Icons.more_vert,
+                    size: 28,
+                    color: Colors.white,
+                  ),
+                  color: Colors.grey[900],
+                  onSelected: (value) {
+                    if (value == 'refresh') {
+                      final auth = context.read<AuthProvider>();
+                      final provider = context.read<ChannelProvider>();
+                      final user = auth.currentUser;
+                      if (user != null) {
+                        if (widget.type == ContentType.live) {
+                          provider.loadXtream(
+                            user.url,
+                            user.username,
+                            user.password,
+                            forceRefresh: true,
+                          );
+                        } else if (widget.type == ContentType.movie) {
+                          provider.loadVod(
+                            user.url,
+                            user.username,
+                            user.password,
+                            forceRefresh: true,
+                          );
+                        } else if (widget.type == ContentType.series) {
+                          provider.loadSeries(
+                            user.url,
+                            user.username,
+                            user.password,
+                            forceRefresh: true,
+                          );
+                        }
+                      }
+                    } else if (value == 'sort') {
+                      _showSortDialog();
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'sort',
+                      child: Row(
+                        children: [
+                          Icon(Icons.sort, color: Colors.white),
+                          SizedBox(width: 10),
+                          Text(
+                            'Ordenar',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'refresh',
+                      child: Row(
+                        children: [
+                          Icon(Icons.refresh, color: Colors.white),
+                          SizedBox(width: 10),
+                          Text(
+                            'Atualizar Lista',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

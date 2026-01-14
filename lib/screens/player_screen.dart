@@ -8,6 +8,7 @@ import '../models/channel.dart';
 import '../widgets/video_controls_overlay.dart';
 import '../providers/channel_provider.dart';
 import '../services/playback_service.dart';
+import '../widgets/focusable_action_wrapper.dart';
 import 'dart:async';
 import 'package:simple_pip_mode/simple_pip.dart';
 
@@ -383,88 +384,94 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         final epTitle = ep['title'].toString();
                         final epImg = ep['info']?['movie_image'] ?? '';
 
-                        return InkWell(
-                          onTap: () {
-                            Navigator.pop(context); // Close sheet
-                            if (!isPlaying) {
-                              _switchEpisode(
-                                index,
-                                widget.currentSeason!,
-                                widget.episodes!,
-                              );
-                            }
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: isPlaying
-                                  ? Colors.purple.withOpacity(0.2)
-                                  : Colors.black45,
-                              borderRadius: BorderRadius.circular(8),
-                              border: isPlaying
-                                  ? Border.all(color: Colors.purpleAccent)
-                                  : null,
-                            ),
-                            child: Row(
-                              children: [
-                                // Thumbnail
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(4),
-                                  child: SizedBox(
-                                    width: 80,
-                                    height: 50,
-                                    child: CachedNetworkImage(
-                                      imageUrl: epImg,
-                                      fit: BoxFit.cover,
-                                      placeholder: (_, __) =>
-                                          Container(color: Colors.grey[800]),
-                                      errorWidget: (_, __, ___) => Container(
-                                        color: Colors.grey[800],
-                                        child: const Icon(
-                                          Icons.movie,
-                                          size: 20,
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8.0),
+                          child: FocusableActionWrapper(
+                            showFocusHighlight:
+                                true, // Always show highlight in this modal
+                            onTap: () {
+                              Navigator.pop(context); // Close sheet
+                              if (!isPlaying) {
+                                _switchEpisode(
+                                  index,
+                                  widget.currentSeason!,
+                                  widget.episodes!,
+                                );
+                              }
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: isPlaying
+                                    ? Colors.purple.withOpacity(0.2)
+                                    : Colors
+                                          .transparent, // Wrapper handles focus color
+                                borderRadius: BorderRadius.circular(8),
+                                border: isPlaying
+                                    ? Border.all(color: Colors.purpleAccent)
+                                    : null,
+                              ),
+                              child: Row(
+                                children: [
+                                  // Thumbnail
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: SizedBox(
+                                      width: 80,
+                                      height: 50,
+                                      child: CachedNetworkImage(
+                                        imageUrl: epImg,
+                                        fit: BoxFit.cover,
+                                        placeholder: (_, __) =>
+                                            Container(color: Colors.grey[800]),
+                                        errorWidget: (_, __, ___) => Container(
+                                          color: Colors.grey[800],
+                                          child: const Icon(
+                                            Icons.movie,
+                                            size: 20,
+                                          ),
                                         ),
                                       ),
                                     ),
                                   ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        epTitle,
-                                        style: TextStyle(
-                                          color: isPlaying
-                                              ? Colors.purpleAccent
-                                              : Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 14,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      if (ep['info']?['plot'] != null)
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
                                         Text(
-                                          ep['info']['plot'].toString(),
-                                          style: const TextStyle(
-                                            color: Colors.grey,
-                                            fontSize: 11,
+                                          epTitle,
+                                          style: TextStyle(
+                                            color: isPlaying
+                                                ? Colors.purpleAccent
+                                                : Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
                                           ),
-                                          maxLines: 2,
+                                          maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                         ),
-                                    ],
+                                        if (ep['info']?['plot'] != null)
+                                          Text(
+                                            ep['info']['plot'].toString(),
+                                            style: const TextStyle(
+                                              color: Colors.grey,
+                                              fontSize: 11,
+                                            ),
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                      ],
+                                    ),
                                   ),
-                                ),
-                                if (isPlaying)
-                                  const Icon(
-                                    Icons.equalizer,
-                                    color: Colors.purpleAccent,
-                                  ),
-                              ],
+                                  if (isPlaying)
+                                    const Icon(
+                                      Icons.equalizer,
+                                      color: Colors.purpleAccent,
+                                    ),
+                                ],
+                              ),
                             ),
                           ),
                         );
