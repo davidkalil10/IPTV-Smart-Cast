@@ -6,6 +6,8 @@ import 'dart:io';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'focusable_action_wrapper.dart';
 import '../models/channel.dart';
+import '../services/cast_service.dart';
+import 'package:cast_plus/cast.dart';
 
 class VideoControlsOverlay extends StatefulWidget {
   final Player player;
@@ -712,7 +714,7 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
                             if (!_isAndroidTV)
                               FocusableActionWrapper(
                                 showFocusHighlight: _isAndroidTV,
-                                onTap: () {},
+                                onTap: _showCastDialog,
                                 child: const Padding(
                                   padding: EdgeInsets.all(8.0),
                                   child: Icon(Icons.cast, color: Colors.white),
@@ -1303,6 +1305,84 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
         ),
       ),
     );
+  }
+
+  void _showCastDialog() {
+    _resetHideTimer();
+    CastService().startDiscovery();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.grey[900],
+          title: const Text(
+            'Transmitir para',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: AnimatedBuilder(
+              animation: CastService(),
+              builder: (context, _) {
+                final devices = CastService().devices;
+                if (CastService().isDiscovering && devices.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.all(20.0),
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        color: Colors.purpleAccent,
+                      ),
+                    ),
+                  );
+                }
+                if (devices.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.all(20.0),
+                    child: Text(
+                      'Nenhum dispositivo encontrado',
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                  );
+                }
+                return ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: devices.length,
+                  itemBuilder: (context, index) {
+                    final device = devices[index];
+                    return ListTile(
+                      title: Text(
+                        device.name,
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                      leading: const Icon(Icons.tv, color: Colors.white),
+                      onTap: () {
+                        Navigator.pop(context);
+                        CastService().connect(device).then((_) {
+                          CastService().loadMedia(
+                            widget.channel.streamUrl,
+                            title: widget.channel.name,
+                          );
+                        });
+                      },
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                'Cancelar',
+                style: TextStyle(color: Colors.purpleAccent),
+              ),
+            ),
+          ],
+        );
+      },
+    ).then((_) => CastService().stopDiscovery());
   }
 
   Widget _buildBottomAction(

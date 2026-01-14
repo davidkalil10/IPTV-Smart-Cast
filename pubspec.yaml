@@ -46,6 +46,7 @@ dependencies:
   simple_pip_mode: ^1.1.0
   flutter_android_tv_text_field: ^1.0.2
   device_info_plus: ^12.3.0
+  cast_plus: ^2.2.0
 
 dev_dependencies:
   flutter_test:
