@@ -22,21 +22,30 @@ class _FocusableActionWrapperState extends State<FocusableActionWrapper> {
 
   @override
   Widget build(BuildContext context) {
-    return Focus(
+    return FocusableActionDetector(
       onFocusChange: (hasFocus) {
-        setState(() {
-          _isFocused = hasFocus;
-        });
-      },
-      onKeyEvent: (node, event) {
-        if (widget.onTap != null &&
-            event is KeyDownEvent &&
-            (event.logicalKey == LogicalKeyboardKey.enter ||
-                event.logicalKey == LogicalKeyboardKey.select)) {
-          widget.onTap!();
-          return KeyEventResult.handled;
+        if (mounted) {
+          setState(() {
+            _isFocused = hasFocus;
+          });
         }
-        return KeyEventResult.ignored;
+      },
+      actions: <Type, Action<Intent>>{
+        ActivateIntent: CallbackAction<ActivateIntent>(
+          onInvoke: (ActivateIntent intent) {
+            if (widget.onTap != null) {
+              widget.onTap!();
+              return true;
+            }
+            return false;
+          },
+        ),
+      },
+      shortcuts: const <ShortcutActivator, Intent>{
+        SingleActivator(LogicalKeyboardKey.select): ActivateIntent(),
+        SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
+        SingleActivator(LogicalKeyboardKey.space): ActivateIntent(),
+        SingleActivator(LogicalKeyboardKey.gameButtonA): ActivateIntent(),
       },
       child: GestureDetector(
         onTap: widget.onTap,

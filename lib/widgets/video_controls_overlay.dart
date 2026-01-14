@@ -70,6 +70,8 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
   Duration _duration = Duration.zero;
   bool _isPlaying = false;
   double _playbackSpeed = 1.0;
+  final FocusNode _backgroundFocusNode = FocusNode();
+  final FocusNode _playFocusNode = FocusNode();
 
   @override
   void initState() {
@@ -189,6 +191,10 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
     }
     _hideTimer?.cancel();
     _osdTimer?.cancel();
+    _osdTimer?.cancel();
+    _osdTimer?.cancel();
+    _backgroundFocusNode.dispose();
+    _playFocusNode.dispose();
     super.dispose();
   }
 
@@ -205,8 +211,16 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
     });
     if (_showControls) {
       _startHideTimer();
+      // Move focus to play button when controls appear
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _playFocusNode.requestFocus();
+      });
     } else {
       _hideTimer?.cancel();
+      // Return focus to background when controls hide (so key presses wake it up)
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _backgroundFocusNode.requestFocus();
+      });
     }
   }
 
@@ -504,511 +518,542 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
         if (widget.onExit != null) widget.onExit!();
         return true; // Exit player
       },
-      child: RawKeyboardListener(
-        focusNode: FocusNode(),
-        autofocus: true,
-        onKey: (event) {
-          if (event is RawKeyDownEvent) {
-            // Any key press wakes up controls
-            if (!_showControls) {
-              setState(() => _showControls = true);
-              _startHideTimer();
-            } else {
-              _resetHideTimer();
-            }
-          }
-        },
-        child: GestureDetector(
-          onTap: () {
-            if (_showSettings) {
-              setState(() => _showSettings = false);
-            } else {
-              _toggleControls();
+      child: FocusScope(
+        child: KeyboardListener(
+          focusNode: _backgroundFocusNode,
+          autofocus: true,
+          onKeyEvent: (event) {
+            if (event is KeyDownEvent) {
+              // Any key press wakes up controls
+              if (!_showControls) {
+                setState(() => _showControls = true);
+                _startHideTimer();
+                // When waking up, focus the play button immediately
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) _playFocusNode.requestFocus();
+                });
+              } else {
+                _resetHideTimer();
+              }
             }
           },
-          onVerticalDragUpdate: (details) {
-            if (_showSettings) return;
-            final screenWidth = MediaQuery.of(context).size.width;
-            final isRight = details.localPosition.dx > screenWidth / 2;
-            _onVerticalDragUpdate(details, isRight);
-          },
-          onVerticalDragEnd: _onVerticalDragEnd,
-          child: Container(
-            color: (_showControls || _showSettings)
-                ? Colors.black45
-                : Colors.transparent,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                IgnorePointer(
-                  child: Container(
-                    color: Colors.black.withOpacity((1.0 - _brightness) * 0.7),
-                  ),
-                ),
-
-                // OSD Message
-                if (_osdMessage != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.black54,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      _osdMessage!,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-
-                if (_showControls && !_showSettings) ...[
-                  // Top Bar
-                  Positioned(
-                    top: 0,
-                    left: 0,
-                    right: 0,
+          child: GestureDetector(
+            onTap: () {
+              if (_showSettings) {
+                setState(() => _showSettings = false);
+              } else {
+                _toggleControls();
+              }
+            },
+            onVerticalDragUpdate: (details) {
+              if (_showSettings) return;
+              final screenWidth = MediaQuery.of(context).size.width;
+              final isRight = details.localPosition.dx > screenWidth / 2;
+              _onVerticalDragUpdate(details, isRight);
+            },
+            onVerticalDragEnd: _onVerticalDragEnd,
+            child: Container(
+              color: (_showControls || _showSettings)
+                  ? Colors.black45
+                  : Colors.transparent,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  IgnorePointer(
                     child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 40,
-                      ),
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [Colors.black87, Colors.transparent],
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          IconButton(
-                            icon: const Icon(
-                              Icons.arrow_back,
-                              color: Colors.white,
-                            ),
-                            onPressed: () {
-                              // UI Back Button: Always exit
-                              if (widget.onExit != null) widget.onExit!();
-                              Navigator.pop(context);
-                            },
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              widget.channel.name,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.cast, color: Colors.white),
-                            onPressed: () {},
-                          ),
-                          if (widget.channel.type != 'live')
-                            IconButton(
-                              icon: const Icon(
-                                Icons.replay,
-                                color: Colors.white,
-                              ),
-                              tooltip: 'Recomeçar',
-                              onPressed: () {
-                                _resetHideTimer();
-                                widget.onRestart();
-                              },
-                            ),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.lock_open,
-                              color: Colors.white,
-                            ),
-                            onPressed: () => setState(() => _isLocked = true),
-                          ),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.settings,
-                              color: Colors.white,
-                            ),
-                            onPressed: _toggleSettings,
-                          ),
-                        ],
+                      color: Colors.black.withOpacity(
+                        (1.0 - _brightness) * 0.7,
                       ),
                     ),
                   ),
 
-                  // Center Controls
-                  Center(
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        IconButton(
-                          icon: const Icon(
-                            Icons.replay_10,
-                            color: Colors.white,
-                            size: 40,
-                          ),
-                          onPressed: () =>
-                              _seekRelative(const Duration(seconds: -10)),
-                        ),
-                        const SizedBox(width: 40),
-                        IconButton(
-                          icon: Icon(
-                            _isPlaying
-                                ? Icons.pause_circle_filled
-                                : Icons.play_circle_fill,
-                            color: Colors.white,
-                            size: 70,
-                          ),
-                          onPressed: _togglePlay,
-                        ),
-                        const SizedBox(width: 40),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.forward_10,
-                            color: Colors.white,
-                            size: 40,
-                          ),
-                          onPressed: () =>
-                              _seekRelative(const Duration(seconds: 10)),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Sliders Indicators
-                  if (_isDraggingVolume)
-                    Positioned(
-                      right: 30,
-                      top: 100,
-                      bottom: 100,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.volume_up, color: Colors.white),
-                          const SizedBox(height: 10),
-                          Expanded(
-                            child: RotatedBox(
-                              quarterTurns: -1,
-                              child: LinearProgressIndicator(
-                                value: _volume / 100,
-                                backgroundColor: Colors.grey[700],
-                                valueColor: const AlwaysStoppedAnimation(
-                                  Colors.white,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  if (_isDraggingBrightness)
-                    Positioned(
-                      left: 30,
-                      top: 100,
-                      bottom: 100,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.brightness_6, color: Colors.white),
-                          const SizedBox(height: 10),
-                          Expanded(
-                            child: RotatedBox(
-                              quarterTurns: -1,
-                              child: LinearProgressIndicator(
-                                value: _brightness,
-                                backgroundColor: Colors.grey[700],
-                                valueColor: const AlwaysStoppedAnimation(
-                                  Colors.white,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                  // Bottom Bar
-                  Positioned(
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    child: Container(
+                  // OSD Message
+                  if (_osdMessage != null)
+                    Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 20,
-                        vertical: 20,
+                        vertical: 10,
                       ),
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [Colors.transparent, Colors.black87],
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
+                      decoration: BoxDecoration(
+                        color: Colors.black54,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        _osdMessage!,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-                      child: Column(
-                        children: [
-                          Row(
-                            children: [
-                              Text(
-                                _formatDuration(_position),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                ),
-                              ),
-                              Expanded(
-                                child: SliderTheme(
-                                  data: SliderTheme.of(context).copyWith(
-                                    thumbShape: const RoundSliderThumbShape(
-                                      enabledThumbRadius: 6,
-                                    ),
-                                    overlayShape: const RoundSliderOverlayShape(
-                                      overlayRadius: 10,
-                                    ),
-                                    activeTrackColor: Colors.purpleAccent,
-                                    thumbColor: Colors.white,
-                                  ),
-                                  child: Slider(
-                                    value: _position.inSeconds.toDouble().clamp(
-                                      0,
-                                      _duration.inSeconds.toDouble(),
-                                    ),
-                                    min: 0,
-                                    max: _duration.inSeconds.toDouble() > 0
-                                        ? _duration.inSeconds.toDouble()
-                                        : 1.0,
-                                    onChanged: (val) {
-                                      _resetHideTimer();
-                                      widget.player.seek(
-                                        Duration(seconds: val.toInt()),
-                                      );
-                                    },
-                                  ),
-                                ),
-                              ),
-                              Text(
-                                _formatDuration(_duration),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
+                    ),
+
+                  if (_showControls && !_showSettings) ...[
+                    // Top Bar
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 40,
+                        ),
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [Colors.black87, Colors.transparent],
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
                           ),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: [
-                              if (widget.channel.type == 'series' ||
-                                  widget.channel.type == 'series_episode')
-                                _buildBottomAction(
-                                  Icons.video_library,
-                                  'EPISÓDIOS',
-                                  widget.onShowEpisodes,
-                                ),
-                              _buildBottomAction(
-                                Icons.aspect_ratio,
-                                'Proporção..',
-                                _cycleAspectRatio,
+                        ),
+                        child: Row(
+                          children: [
+                            IconButton(
+                              icon: const Icon(
+                                Icons.arrow_back,
+                                color: Colors.white,
                               ),
-                              _buildBottomAction(
-                                Icons.speed,
-                                'Velocidade..',
-                                _showSpeedMenu,
-                              ),
-                              if (widget.channel.type == 'series' ||
-                                  widget.channel.type == 'series_episode')
-                                TextButton.icon(
-                                  onPressed: widget.onNextEpisode,
-                                  icon: const Icon(
-                                    Icons.skip_next,
-                                    color: Colors.white,
-                                  ),
-                                  label: const Text(
-                                    'Próximo ep..',
-                                    style: TextStyle(color: Colors.white),
-                                  ),
+                              onPressed: () {
+                                // UI Back Button: Always exit
+                                if (widget.onExit != null) widget.onExit!();
+                                Navigator.pop(context);
+                              },
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                widget.channel.name,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
                                 ),
-                            ],
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.cast, color: Colors.white),
+                              onPressed: () {},
+                            ),
+                            if (widget.channel.type != 'live')
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.replay,
+                                  color: Colors.white,
+                                ),
+                                tooltip: 'Recomeçar',
+                                onPressed: () {
+                                  _resetHideTimer();
+                                  widget.onRestart();
+                                },
+                              ),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.lock_open,
+                                color: Colors.white,
+                              ),
+                              onPressed: () => setState(() => _isLocked = true),
+                            ),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.settings,
+                                color: Colors.white,
+                              ),
+                              onPressed: _toggleSettings,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    // Center Controls
+                    Center(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          IconButton(
+                            icon: const Icon(
+                              Icons.replay_10,
+                              color: Colors.white,
+                              size: 40,
+                            ),
+                            onPressed: () =>
+                                _seekRelative(const Duration(seconds: -10)),
+                          ),
+                          const SizedBox(width: 40),
+                          IconButton(
+                            icon: Icon(
+                              _isPlaying
+                                  ? Icons.pause_circle_filled
+                                  : Icons.play_circle_fill,
+                              color: Colors.white,
+                              size: 70,
+                            ),
+                            onPressed: _togglePlay,
+                            focusNode: _playFocusNode,
+                            autofocus: true,
+                          ),
+                          const SizedBox(width: 40),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.forward_10,
+                              color: Colors.white,
+                              size: 40,
+                            ),
+                            onPressed: () =>
+                                _seekRelative(const Duration(seconds: 10)),
                           ),
                         ],
                       ),
                     ),
-                  ),
-                ],
 
-                if (_showSettings)
-                  Positioned(
-                    top: 0,
-                    bottom: 0,
-                    right: 0,
-                    width: 350,
-                    child: Container(
-                      color: Colors.black.withOpacity(0.95),
-                      child: Column(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 20,
-                            ),
-                            decoration: const BoxDecoration(
-                              border: Border(
-                                bottom: BorderSide(color: Colors.white24),
+                    // Sliders Indicators
+                    if (_isDraggingVolume)
+                      Positioned(
+                        right: 30,
+                        top: 100,
+                        bottom: 100,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.volume_up, color: Colors.white),
+                            const SizedBox(height: 10),
+                            Expanded(
+                              child: RotatedBox(
+                                quarterTurns: -1,
+                                child: LinearProgressIndicator(
+                                  value: _volume / 100,
+                                  backgroundColor: Colors.grey[700],
+                                  valueColor: const AlwaysStoppedAnimation(
+                                    Colors.white,
+                                  ),
+                                ),
                               ),
                             ),
-                            child: Row(
-                              children: [
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.arrow_back,
-                                    color: Colors.white,
+                          ],
+                        ),
+                      ),
+                    if (_isDraggingBrightness)
+                      Positioned(
+                        left: 30,
+                        top: 100,
+                        bottom: 100,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.brightness_6, color: Colors.white),
+                            const SizedBox(height: 10),
+                            Expanded(
+                              child: RotatedBox(
+                                quarterTurns: -1,
+                                child: LinearProgressIndicator(
+                                  value: _brightness,
+                                  backgroundColor: Colors.grey[700],
+                                  valueColor: const AlwaysStoppedAnimation(
+                                    Colors.white,
                                   ),
-                                  onPressed: _toggleSettings,
                                 ),
-                                const SizedBox(width: 8),
-                                const Text(
-                                  'Settings',
-                                  style: TextStyle(
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                    // Bottom Bar
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 20,
+                        ),
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [Colors.transparent, Colors.black87],
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  _formatDuration(_position),
+                                  style: const TextStyle(
                                     color: Colors.white,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                Expanded(
+                                  child: SliderTheme(
+                                    data: SliderTheme.of(context).copyWith(
+                                      thumbShape: const RoundSliderThumbShape(
+                                        enabledThumbRadius: 6,
+                                      ),
+                                      overlayShape:
+                                          const RoundSliderOverlayShape(
+                                            overlayRadius: 10,
+                                          ),
+                                      activeTrackColor: Colors.purpleAccent,
+                                      thumbColor: Colors.white,
+                                    ),
+                                    child: Slider(
+                                      value: _position.inSeconds
+                                          .toDouble()
+                                          .clamp(
+                                            0,
+                                            _duration.inSeconds.toDouble(),
+                                          ),
+                                      min: 0,
+                                      max: _duration.inSeconds.toDouble() > 0
+                                          ? _duration.inSeconds.toDouble()
+                                          : 1.0,
+                                      onChanged: (val) {
+                                        _resetHideTimer();
+                                        widget.player.seek(
+                                          Duration(seconds: val.toInt()),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  _formatDuration(_duration),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
                                   ),
                                 ),
                               ],
                             ),
-                          ),
-                          Expanded(
-                            child: ListView(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 20,
-                                vertical: 10,
-                              ),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                               children: [
-                                // Video Tracks
-                                _buildSettingSection<VideoTrack>(
-                                  'Faixas de vídeo',
-                                  widget.player.state.tracks.video
-                                      .where(
-                                        (t) => t.id != 'auto' && t.id != 'no',
-                                      )
-                                      .toList(),
-                                  _selectedVideoTrack,
-                                  (track) => widget.player.setVideoTrack(track),
-                                  (track) =>
-                                      '${track.id}: ${track.codec ?? "Unknown"} ${track.w != null ? "${track.w}x${track.h}" : ""} ${track.bitrate != null ? "${(track.bitrate! / 1000).round()}kb/s" : ""}',
+                                if (widget.channel.type == 'series' ||
+                                    widget.channel.type == 'series_episode')
+                                  _buildBottomAction(
+                                    Icons.video_library,
+                                    'EPISÓDIOS',
+                                    widget.onShowEpisodes,
+                                  ),
+                                _buildBottomAction(
+                                  Icons.aspect_ratio,
+                                  'Proporção..',
+                                  _cycleAspectRatio,
                                 ),
-                                const Divider(color: Colors.white24),
-
-                                // Audio Tracks
-                                _buildSettingSection<AudioTrack>(
-                                  'Faixas de áudio',
-                                  widget.player.state.tracks.audio
-                                      .where(
-                                        (t) => t.id != 'auto' && t.id != 'no',
-                                      )
-                                      .toList(),
-                                  _selectedAudioTrack,
-                                  (track) => widget.player.setAudioTrack(track),
-                                  (track) =>
-                                      '${track.id}: ${track.language ?? "Unknown"} ${track.codec ?? ""} ${track.channels != null ? "${track.channels}ch" : ""} ${track.bitrate != null ? "${(track.bitrate! / 1000).round()}kb/s" : ""}',
+                                _buildBottomAction(
+                                  Icons.speed,
+                                  'Velocidade..',
+                                  _showSpeedMenu,
                                 ),
-                                const Divider(color: Colors.white24),
+                                if (widget.channel.type == 'series' ||
+                                    widget.channel.type == 'series_episode')
+                                  TextButton.icon(
+                                    onPressed: widget.onNextEpisode,
+                                    icon: const Icon(
+                                      Icons.skip_next,
+                                      color: Colors.white,
+                                    ),
+                                    label: const Text(
+                                      'Próximo ep..',
+                                      style: TextStyle(color: Colors.white),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
 
-                                // Subtitle Tracks
-                                if (widget.player.state.tracks.subtitle.any(
-                                  (t) => t.id != 'auto' && t.id != 'no',
-                                )) ...[
-                                  _buildSettingSection<SubtitleTrack>(
-                                    'Faixas de legendas',
-                                    widget.player.state.tracks.subtitle
-                                        .where((t) => t.id != 'auto')
+                  if (_showSettings)
+                    Positioned(
+                      top: 0,
+                      bottom: 0,
+                      right: 0,
+                      width: 350,
+                      child: Container(
+                        color: Colors.black.withOpacity(0.95),
+                        child: Column(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 20,
+                              ),
+                              decoration: const BoxDecoration(
+                                border: Border(
+                                  bottom: BorderSide(color: Colors.white24),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.arrow_back,
+                                      color: Colors.white,
+                                    ),
+                                    onPressed: _toggleSettings,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Text(
+                                    'Settings',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Expanded(
+                              child: ListView(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 10,
+                                ),
+                                children: [
+                                  // Video Tracks
+                                  _buildSettingSection<VideoTrack>(
+                                    'Faixas de vídeo',
+                                    widget.player.state.tracks.video
+                                        .where(
+                                          (t) => t.id != 'auto' && t.id != 'no',
+                                        )
                                         .toList(),
-                                    _selectedSubtitleTrack,
+                                    _selectedVideoTrack,
                                     (track) =>
-                                        widget.player.setSubtitleTrack(track),
-                                    (track) {
-                                      if (track.id == 'no') return 'Desativado';
-                                      return '${track.id}: ${track.language ?? "Unknown"} ${track.codec ?? ""} ${track.title ?? ""}';
-                                    },
+                                        widget.player.setVideoTrack(track),
+                                    (track) =>
+                                        '${track.id}: ${track.codec ?? "Unknown"} ${track.w != null ? "${track.w}x${track.h}" : ""} ${track.bitrate != null ? "${(track.bitrate! / 1000).round()}kb/s" : ""}',
                                   ),
                                   const Divider(color: Colors.white24),
-                                ],
 
-                                const Padding(
-                                  padding: EdgeInsets.only(top: 10, bottom: 6),
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.settings_applications,
-                                        color: Colors.white,
-                                        size: 20,
-                                      ),
-                                      SizedBox(width: 10),
-                                      Text(
-                                        'Configurações de legendas',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ],
+                                  // Audio Tracks
+                                  _buildSettingSection<AudioTrack>(
+                                    'Faixas de áudio',
+                                    widget.player.state.tracks.audio
+                                        .where(
+                                          (t) => t.id != 'auto' && t.id != 'no',
+                                        )
+                                        .toList(),
+                                    _selectedAudioTrack,
+                                    (track) =>
+                                        widget.player.setAudioTrack(track),
+                                    (track) =>
+                                        '${track.id}: ${track.language ?? "Unknown"} ${track.codec ?? ""} ${track.channels != null ? "${track.channels}ch" : ""} ${track.bitrate != null ? "${(track.bitrate! / 1000).round()}kb/s" : ""}',
                                   ),
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.only(left: 30),
-                                  child: Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      const Text(
-                                        'Tamanho da fonte',
-                                        style: TextStyle(color: Colors.white70),
-                                      ),
-                                      DropdownButton<int>(
-                                        value: _subtitleFontSize,
-                                        dropdownColor: Colors.grey[900],
-                                        underline: Container(),
-                                        style: const TextStyle(
+                                  const Divider(color: Colors.white24),
+
+                                  // Subtitle Tracks
+                                  if (widget.player.state.tracks.subtitle.any(
+                                    (t) => t.id != 'auto' && t.id != 'no',
+                                  )) ...[
+                                    _buildSettingSection<SubtitleTrack>(
+                                      'Faixas de legendas',
+                                      widget.player.state.tracks.subtitle
+                                          .where((t) => t.id != 'auto')
+                                          .toList(),
+                                      _selectedSubtitleTrack,
+                                      (track) =>
+                                          widget.player.setSubtitleTrack(track),
+                                      (track) {
+                                        if (track.id == 'no')
+                                          return 'Desativado';
+                                        return '${track.id}: ${track.language ?? "Unknown"} ${track.codec ?? ""} ${track.title ?? ""}';
+                                      },
+                                    ),
+                                    const Divider(color: Colors.white24),
+                                  ],
+
+                                  const Padding(
+                                    padding: EdgeInsets.only(
+                                      top: 10,
+                                      bottom: 6,
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.settings_applications,
                                           color: Colors.white,
+                                          size: 20,
                                         ),
-                                        items:
-                                            [20, 24, 28, 32, 36, 40, 48, 56, 64]
-                                                .map(
-                                                  (e) => DropdownMenuItem(
-                                                    value: e,
-                                                    child: Text(e.toString()),
-                                                  ),
-                                                )
-                                                .toList(),
-                                        onChanged: (v) {
-                                          if (v != null) {
-                                            setState(
-                                              () => _subtitleFontSize = v,
-                                            );
-                                            widget.onSubtitleSizeChanged(v);
-                                          }
-                                        },
-                                      ),
-                                    ],
+                                        SizedBox(width: 10),
+                                        Text(
+                                          'Configurações de legendas',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                ),
-                              ],
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 30),
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        const Text(
+                                          'Tamanho da fonte',
+                                          style: TextStyle(
+                                            color: Colors.white70,
+                                          ),
+                                        ),
+                                        DropdownButton<int>(
+                                          value: _subtitleFontSize,
+                                          dropdownColor: Colors.grey[900],
+                                          underline: Container(),
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                          ),
+                                          items:
+                                              [
+                                                    20,
+                                                    24,
+                                                    28,
+                                                    32,
+                                                    36,
+                                                    40,
+                                                    48,
+                                                    56,
+                                                    64,
+                                                  ]
+                                                  .map(
+                                                    (e) => DropdownMenuItem(
+                                                      value: e,
+                                                      child: Text(e.toString()),
+                                                    ),
+                                                  )
+                                                  .toList(),
+                                          onChanged: (v) {
+                                            if (v != null) {
+                                              setState(
+                                                () => _subtitleFontSize = v,
+                                              );
+                                              widget.onSubtitleSizeChanged(v);
+                                            }
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
