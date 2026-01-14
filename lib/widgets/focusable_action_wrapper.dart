@@ -5,12 +5,14 @@ class FocusableActionWrapper extends StatefulWidget {
   final Widget child;
   final VoidCallback? onTap;
   final bool showFocusHighlight;
+  final FocusNode? focusNode;
 
   const FocusableActionWrapper({
     super.key,
     required this.child,
     this.onTap,
     this.showFocusHighlight = false,
+    this.focusNode,
   });
 
   @override
@@ -23,6 +25,7 @@ class _FocusableActionWrapperState extends State<FocusableActionWrapper> {
   @override
   Widget build(BuildContext context) {
     return FocusableActionDetector(
+      focusNode: widget.focusNode,
       onFocusChange: (hasFocus) {
         if (mounted) {
           setState(() {

@@ -2,6 +2,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
+import 'dart:io';
+import 'package:device_info_plus/device_info_plus.dart';
+import 'focusable_action_wrapper.dart';
 import '../models/channel.dart';
 
 class VideoControlsOverlay extends StatefulWidget {
@@ -36,7 +39,10 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
   bool _isLocked = false;
   Timer? _hideTimer;
   double _volume = 100.0; // media_kit volume is 0..100
+
   double _brightness = 0.5;
+  bool _isAndroidTV = false;
+  bool _isSeekMode = false; // State for click-to-seek
 
   // Aspect Ratio State
   static const List<String> _aspectRatios = [
@@ -72,10 +78,14 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
   double _playbackSpeed = 1.0;
   final FocusNode _backgroundFocusNode = FocusNode();
   final FocusNode _playFocusNode = FocusNode();
+  final FocusNode _fontSizeFocusNode = FocusNode();
 
   @override
   void initState() {
     super.initState();
+    _fontSizeFocusNode.addListener(() {
+      if (mounted) setState(() {});
+    });
     _startHideTimer();
 
     // Initial State
@@ -143,6 +153,19 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
         }
       }),
     );
+    _checkDeviceType();
+  }
+
+  Future<void> _checkDeviceType() async {
+    if (Platform.isAndroid) {
+      final DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
+      AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
+      setState(() {
+        _isAndroidTV = androidInfo.systemFeatures.contains(
+          'android.software.leanback',
+        );
+      });
+    }
   }
 
   void _enforceDefaultTracks() {
@@ -196,6 +219,7 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
     _osdTimer?.cancel();
     _backgroundFocusNode.dispose();
     _playFocusNode.dispose();
+    _fontSizeFocusNode.dispose();
     super.dispose();
   }
 
@@ -432,22 +456,34 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
         ),
         ...items.map((item) {
           final isSelected = selectedItem == item;
-          return RadioListTile<T>(
-            value: item,
-            groupValue: selectedItem,
-            onChanged: (val) {
-              if (val != null) onSelect(val);
-            },
-            activeColor: Colors.white,
-            title: Text(
-              labelBuilder(item),
-              style: TextStyle(
-                color: isSelected ? Colors.white : Colors.white60,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          return FocusableActionWrapper(
+            showFocusHighlight: _isAndroidTV,
+            onTap: () => onSelect(item),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
+              child: Row(
+                children: [
+                  Icon(
+                    isSelected
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_unchecked,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 16),
+                  Text(
+                    labelBuilder(item),
+                    style: TextStyle(
+                      color: isSelected ? Colors.white : Colors.white60,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
               ),
             ),
-            dense: true,
-            contentPadding: const EdgeInsets.only(left: 30),
           );
         }).toList(),
       ],
@@ -488,7 +524,12 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
                             color: Colors.purpleAccent,
                             size: 30,
                           ),
-                          onPressed: () => setState(() => _isLocked = false),
+                          onPressed: () {
+                            setState(() => _isLocked = false);
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (mounted) _playFocusNode.requestFocus();
+                            });
+                          },
                         ),
                       ),
                       const Center(
@@ -609,16 +650,19 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
                         ),
                         child: Row(
                           children: [
-                            IconButton(
-                              icon: const Icon(
-                                Icons.arrow_back,
-                                color: Colors.white,
-                              ),
-                              onPressed: () {
-                                // UI Back Button: Always exit
+                            FocusableActionWrapper(
+                              showFocusHighlight: _isAndroidTV,
+                              onTap: () {
                                 if (widget.onExit != null) widget.onExit!();
                                 Navigator.pop(context);
                               },
+                              child: const Padding(
+                                padding: EdgeInsets.all(8.0),
+                                child: Icon(
+                                  Icons.arrow_back,
+                                  color: Colors.white,
+                                ),
+                              ),
                             ),
                             const SizedBox(width: 10),
                             Expanded(
@@ -632,35 +676,52 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                            IconButton(
-                              icon: const Icon(Icons.cast, color: Colors.white),
-                              onPressed: () {},
+                            FocusableActionWrapper(
+                              showFocusHighlight: _isAndroidTV,
+                              onTap: () {},
+                              child: const Padding(
+                                padding: EdgeInsets.all(8.0),
+                                child: Icon(Icons.cast, color: Colors.white),
+                              ),
                             ),
                             if (widget.channel.type != 'live')
-                              IconButton(
-                                icon: const Icon(
-                                  Icons.replay,
-                                  color: Colors.white,
-                                ),
-                                tooltip: 'Recomeçar',
-                                onPressed: () {
+                              FocusableActionWrapper(
+                                showFocusHighlight: _isAndroidTV,
+                                onTap: () {
                                   _resetHideTimer();
                                   widget.onRestart();
                                 },
+                                child: const Padding(
+                                  padding: EdgeInsets.all(8.0),
+                                  child: Icon(
+                                    Icons.replay,
+                                    color: Colors.white,
+                                  ),
+                                ),
                               ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.lock_open,
-                                color: Colors.white,
+                            FocusableActionWrapper(
+                              showFocusHighlight: _isAndroidTV,
+                              onTap: () {
+                                setState(() => _isLocked = true);
+                              },
+                              child: const Padding(
+                                padding: EdgeInsets.all(8.0),
+                                child: Icon(
+                                  Icons.lock_open,
+                                  color: Colors.white,
+                                ),
                               ),
-                              onPressed: () => setState(() => _isLocked = true),
                             ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.settings,
-                                color: Colors.white,
+                            FocusableActionWrapper(
+                              showFocusHighlight: _isAndroidTV,
+                              onTap: _toggleSettings,
+                              child: const Padding(
+                                padding: EdgeInsets.all(8.0),
+                                child: Icon(
+                                  Icons.settings,
+                                  color: Colors.white,
+                                ),
                               ),
-                              onPressed: _toggleSettings,
                             ),
                           ],
                         ),
@@ -672,37 +733,48 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          IconButton(
-                            icon: const Icon(
-                              Icons.replay_10,
-                              color: Colors.white,
-                              size: 40,
-                            ),
-                            onPressed: () =>
+                          FocusableActionWrapper(
+                            showFocusHighlight: _isAndroidTV,
+                            onTap: () =>
                                 _seekRelative(const Duration(seconds: -10)),
+                            child: const Padding(
+                              padding: EdgeInsets.all(8.0),
+                              child: Icon(
+                                Icons.replay_10,
+                                color: Colors.white,
+                                size: 40,
+                              ),
+                            ),
                           ),
                           const SizedBox(width: 40),
-                          IconButton(
-                            icon: Icon(
-                              _isPlaying
-                                  ? Icons.pause_circle_filled
-                                  : Icons.play_circle_fill,
-                              color: Colors.white,
-                              size: 70,
-                            ),
-                            onPressed: _togglePlay,
+                          FocusableActionWrapper(
+                            showFocusHighlight: _isAndroidTV,
                             focusNode: _playFocusNode,
-                            autofocus: true,
+                            onTap: _togglePlay,
+                            child: Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: Icon(
+                                _isPlaying
+                                    ? Icons.pause_circle_filled
+                                    : Icons.play_circle_fill,
+                                color: Colors.white,
+                                size: 70,
+                              ),
+                            ),
                           ),
                           const SizedBox(width: 40),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.forward_10,
-                              color: Colors.white,
-                              size: 40,
-                            ),
-                            onPressed: () =>
+                          FocusableActionWrapper(
+                            showFocusHighlight: _isAndroidTV,
+                            onTap: () =>
                                 _seekRelative(const Duration(seconds: 10)),
+                            child: const Padding(
+                              padding: EdgeInsets.all(8.0),
+                              child: Icon(
+                                Icons.forward_10,
+                                color: Colors.white,
+                                size: 40,
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -789,37 +861,88 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
                                   ),
                                 ),
                                 Expanded(
-                                  child: SliderTheme(
-                                    data: SliderTheme.of(context).copyWith(
-                                      thumbShape: const RoundSliderThumbShape(
-                                        enabledThumbRadius: 6,
-                                      ),
-                                      overlayShape:
-                                          const RoundSliderOverlayShape(
-                                            overlayRadius: 10,
+                                  child: _isSeekMode
+                                      ? Focus(
+                                          onKeyEvent: (node, event) {
+                                            if (event is KeyDownEvent &&
+                                                (event.logicalKey ==
+                                                        LogicalKeyboardKey
+                                                            .escape ||
+                                                    event.logicalKey ==
+                                                        LogicalKeyboardKey
+                                                            .goBack)) {
+                                              setState(
+                                                () => _isSeekMode = false,
+                                              );
+                                              return KeyEventResult.handled;
+                                            }
+                                            return KeyEventResult.ignored;
+                                          },
+                                          child: SliderTheme(
+                                            data: SliderTheme.of(context).copyWith(
+                                              thumbShape:
+                                                  const RoundSliderThumbShape(
+                                                    enabledThumbRadius: 8,
+                                                  ),
+                                              overlayShape:
+                                                  const RoundSliderOverlayShape(
+                                                    overlayRadius: 12,
+                                                  ),
+                                              activeTrackColor:
+                                                  Colors.purpleAccent,
+                                              inactiveTrackColor:
+                                                  Colors.white24,
+                                              thumbColor: Colors.purpleAccent,
+                                              overlayColor: Colors.purpleAccent
+                                                  .withOpacity(0.2),
+                                            ),
+                                            child: Slider(
+                                              autofocus: true,
+                                              value: _position.inSeconds
+                                                  .toDouble()
+                                                  .clamp(
+                                                    0.0,
+                                                    _duration.inSeconds
+                                                        .toDouble(),
+                                                  ),
+                                              min: 0,
+                                              max: _duration.inSeconds
+                                                  .toDouble(),
+                                              onChanged: (value) {
+                                                _resetHideTimer();
+                                                final newPos = Duration(
+                                                  seconds: value.toInt(),
+                                                );
+                                                setState(
+                                                  () => _position = newPos,
+                                                );
+                                                widget.player.seek(newPos);
+                                              },
+                                            ),
                                           ),
-                                      activeTrackColor: Colors.purpleAccent,
-                                      thumbColor: Colors.white,
-                                    ),
-                                    child: Slider(
-                                      value: _position.inSeconds
-                                          .toDouble()
-                                          .clamp(
-                                            0,
-                                            _duration.inSeconds.toDouble(),
+                                        )
+                                      : FocusableActionWrapper(
+                                          showFocusHighlight: _isAndroidTV,
+                                          onTap: () {
+                                            setState(() => _isSeekMode = true);
+                                          },
+                                          child: Container(
+                                            height: 30, // Hit target height
+                                            alignment: Alignment.center,
+                                            child: LinearProgressIndicator(
+                                              value: _duration.inSeconds > 0
+                                                  ? (_position.inSeconds /
+                                                            _duration.inSeconds)
+                                                        .clamp(0.0, 1.0)
+                                                  : 0.0,
+                                              backgroundColor: Colors.white24,
+                                              valueColor:
+                                                  const AlwaysStoppedAnimation(
+                                                    Colors.purpleAccent,
+                                                  ),
+                                            ),
                                           ),
-                                      min: 0,
-                                      max: _duration.inSeconds.toDouble() > 0
-                                          ? _duration.inSeconds.toDouble()
-                                          : 1.0,
-                                      onChanged: (val) {
-                                        _resetHideTimer();
-                                        widget.player.seek(
-                                          Duration(seconds: val.toInt()),
-                                        );
-                                      },
-                                    ),
-                                  ),
+                                        ),
                                 ),
                                 Text(
                                   _formatDuration(_duration),
@@ -852,15 +975,29 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
                                 ),
                                 if (widget.channel.type == 'series' ||
                                     widget.channel.type == 'series_episode')
-                                  TextButton.icon(
-                                    onPressed: widget.onNextEpisode,
-                                    icon: const Icon(
-                                      Icons.skip_next,
-                                      color: Colors.white,
-                                    ),
-                                    label: const Text(
-                                      'Próximo ep..',
-                                      style: TextStyle(color: Colors.white),
+                                  FocusableActionWrapper(
+                                    showFocusHighlight: _isAndroidTV,
+                                    onTap: widget.onNextEpisode,
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 8,
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.skip_next,
+                                            color: Colors.white,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          const Text(
+                                            'Próximo ep..',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                               ],
@@ -877,179 +1014,221 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
                       bottom: 0,
                       right: 0,
                       width: 350,
-                      child: Container(
-                        color: Colors.black.withOpacity(0.95),
-                        child: Column(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 20,
-                              ),
-                              decoration: const BoxDecoration(
-                                border: Border(
-                                  bottom: BorderSide(color: Colors.white24),
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(
-                                      Icons.arrow_back,
-                                      color: Colors.white,
-                                    ),
-                                    onPressed: _toggleSettings,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  const Text(
-                                    'Settings',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Expanded(
-                              child: ListView(
+                      child: FocusScope(
+                        autofocus: true,
+                        child: Container(
+                          color: Colors.black.withOpacity(0.95),
+                          child: Column(
+                            children: [
+                              Container(
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 20,
-                                  vertical: 10,
+                                  horizontal: 16,
+                                  vertical: 20,
                                 ),
-                                children: [
-                                  // Video Tracks
-                                  _buildSettingSection<VideoTrack>(
-                                    'Faixas de vídeo',
-                                    widget.player.state.tracks.video
-                                        .where(
-                                          (t) => t.id != 'auto' && t.id != 'no',
-                                        )
-                                        .toList(),
-                                    _selectedVideoTrack,
-                                    (track) =>
-                                        widget.player.setVideoTrack(track),
-                                    (track) =>
-                                        '${track.id}: ${track.codec ?? "Unknown"} ${track.w != null ? "${track.w}x${track.h}" : ""} ${track.bitrate != null ? "${(track.bitrate! / 1000).round()}kb/s" : ""}',
+                                decoration: const BoxDecoration(
+                                  border: Border(
+                                    bottom: BorderSide(color: Colors.white24),
                                   ),
-                                  const Divider(color: Colors.white24),
-
-                                  // Audio Tracks
-                                  _buildSettingSection<AudioTrack>(
-                                    'Faixas de áudio',
-                                    widget.player.state.tracks.audio
-                                        .where(
-                                          (t) => t.id != 'auto' && t.id != 'no',
-                                        )
-                                        .toList(),
-                                    _selectedAudioTrack,
-                                    (track) =>
-                                        widget.player.setAudioTrack(track),
-                                    (track) =>
-                                        '${track.id}: ${track.language ?? "Unknown"} ${track.codec ?? ""} ${track.channels != null ? "${track.channels}ch" : ""} ${track.bitrate != null ? "${(track.bitrate! / 1000).round()}kb/s" : ""}',
+                                ),
+                                child: Row(
+                                  children: [
+                                    FocusableActionWrapper(
+                                      showFocusHighlight: _isAndroidTV,
+                                      onTap: _toggleSettings,
+                                      child: const Padding(
+                                        padding: EdgeInsets.all(8.0),
+                                        child: Icon(
+                                          Icons.arrow_back,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    const Text(
+                                      'Settings',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Expanded(
+                                child: ListView(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                    vertical: 10,
                                   ),
-                                  const Divider(color: Colors.white24),
-
-                                  // Subtitle Tracks
-                                  if (widget.player.state.tracks.subtitle.any(
-                                    (t) => t.id != 'auto' && t.id != 'no',
-                                  )) ...[
-                                    _buildSettingSection<SubtitleTrack>(
-                                      'Faixas de legendas',
-                                      widget.player.state.tracks.subtitle
-                                          .where((t) => t.id != 'auto')
+                                  children: [
+                                    // Video Tracks
+                                    _buildSettingSection<VideoTrack>(
+                                      'Faixas de vídeo',
+                                      widget.player.state.tracks.video
+                                          .where(
+                                            (t) =>
+                                                t.id != 'auto' && t.id != 'no',
+                                          )
                                           .toList(),
-                                      _selectedSubtitleTrack,
+                                      _selectedVideoTrack,
                                       (track) =>
-                                          widget.player.setSubtitleTrack(track),
-                                      (track) {
-                                        if (track.id == 'no')
-                                          return 'Desativado';
-                                        return '${track.id}: ${track.language ?? "Unknown"} ${track.codec ?? ""} ${track.title ?? ""}';
-                                      },
+                                          widget.player.setVideoTrack(track),
+                                      (track) =>
+                                          '${track.id}: ${track.codec ?? "Unknown"} ${track.w != null ? "${track.w}x${track.h}" : ""} ${track.bitrate != null ? "${(track.bitrate! / 1000).round()}kb/s" : ""}',
                                     ),
                                     const Divider(color: Colors.white24),
-                                  ],
 
-                                  const Padding(
-                                    padding: EdgeInsets.only(
-                                      top: 10,
-                                      bottom: 6,
+                                    // Audio Tracks
+                                    _buildSettingSection<AudioTrack>(
+                                      'Faixas de áudio',
+                                      widget.player.state.tracks.audio
+                                          .where(
+                                            (t) =>
+                                                t.id != 'auto' && t.id != 'no',
+                                          )
+                                          .toList(),
+                                      _selectedAudioTrack,
+                                      (track) =>
+                                          widget.player.setAudioTrack(track),
+                                      (track) =>
+                                          '${track.id}: ${track.language ?? "Unknown"} ${track.codec ?? ""} ${track.channels != null ? "${track.channels}ch" : ""} ${track.bitrate != null ? "${(track.bitrate! / 1000).round()}kb/s" : ""}',
                                     ),
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.settings_applications,
-                                          color: Colors.white,
-                                          size: 20,
-                                        ),
-                                        SizedBox(width: 10),
-                                        Text(
-                                          'Configurações de legendas',
-                                          style: TextStyle(
+                                    const Divider(color: Colors.white24),
+
+                                    // Subtitle Tracks
+                                    if (widget.player.state.tracks.subtitle.any(
+                                      (t) => t.id != 'auto' && t.id != 'no',
+                                    )) ...[
+                                      _buildSettingSection<SubtitleTrack>(
+                                        'Faixas de legendas',
+                                        widget.player.state.tracks.subtitle
+                                            .where((t) => t.id != 'auto')
+                                            .toList(),
+                                        _selectedSubtitleTrack,
+                                        (track) => widget.player
+                                            .setSubtitleTrack(track),
+                                        (track) {
+                                          if (track.id == 'no')
+                                            return 'Desativado';
+                                          return '${track.id}: ${track.language ?? "Unknown"} ${track.codec ?? ""} ${track.title ?? ""}';
+                                        },
+                                      ),
+                                      const Divider(color: Colors.white24),
+                                    ],
+
+                                    const Padding(
+                                      padding: EdgeInsets.only(
+                                        top: 10,
+                                        bottom: 6,
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.settings_applications,
                                             color: Colors.white,
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
+                                            size: 20,
                                           ),
-                                        ),
-                                      ],
+                                          SizedBox(width: 10),
+                                          Text(
+                                            'Configurações de legendas',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                  Padding(
-                                    padding: const EdgeInsets.only(left: 30),
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        const Text(
-                                          'Tamanho da fonte',
-                                          style: TextStyle(
-                                            color: Colors.white70,
+                                    Padding(
+                                      padding: const EdgeInsets.only(left: 30),
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          border: Border.all(
+                                            color:
+                                                (_isAndroidTV &&
+                                                    _fontSizeFocusNode.hasFocus)
+                                                ? Colors.tealAccent
+                                                : Colors.transparent,
+                                            width: 2,
                                           ),
-                                        ),
-                                        DropdownButton<int>(
-                                          value: _subtitleFontSize,
-                                          dropdownColor: Colors.grey[900],
-                                          underline: Container(),
-                                          style: const TextStyle(
-                                            color: Colors.white,
+                                          borderRadius: BorderRadius.circular(
+                                            4,
                                           ),
-                                          items:
-                                              [
-                                                    20,
-                                                    24,
-                                                    28,
-                                                    32,
-                                                    36,
-                                                    40,
-                                                    48,
-                                                    56,
-                                                    64,
-                                                  ]
-                                                  .map(
-                                                    (e) => DropdownMenuItem(
-                                                      value: e,
-                                                      child: Text(e.toString()),
-                                                    ),
-                                                  )
-                                                  .toList(),
-                                          onChanged: (v) {
-                                            if (v != null) {
-                                              setState(
-                                                () => _subtitleFontSize = v,
-                                              );
-                                              widget.onSubtitleSizeChanged(v);
-                                            }
-                                          },
+                                          color:
+                                              (_isAndroidTV &&
+                                                  _fontSizeFocusNode.hasFocus)
+                                              ? Colors.tealAccent.withOpacity(
+                                                  0.2,
+                                                )
+                                              : Colors.transparent,
                                         ),
-                                      ],
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            const Text(
+                                              'Tamanho da fonte',
+                                              style: TextStyle(
+                                                color: Colors.white70,
+                                              ),
+                                            ),
+                                            DropdownButton<int>(
+                                              focusNode: _fontSizeFocusNode,
+                                              dropdownColor: Colors.grey[900],
+                                              value: _subtitleFontSize,
+                                              underline: Container(),
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                              items:
+                                                  [
+                                                        20,
+                                                        24,
+                                                        28,
+                                                        32,
+                                                        36,
+                                                        40,
+                                                        48,
+                                                        56,
+                                                        64,
+                                                      ]
+                                                      .map(
+                                                        (e) => DropdownMenuItem(
+                                                          value: e,
+                                                          child: Text(
+                                                            e.toString(),
+                                                          ),
+                                                        ),
+                                                      )
+                                                      .toList(),
+                                              onChanged: (v) {
+                                                if (v != null) {
+                                                  setState(
+                                                    () => _subtitleFontSize = v,
+                                                  );
+                                                  widget.onSubtitleSizeChanged(
+                                                    v,
+                                                  );
+                                                }
+                                              },
+                                            ),
+                                          ],
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -1063,14 +1242,18 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
   }
 
   Widget _buildBottomAction(IconData icon, String label, VoidCallback onTap) {
-    return InkWell(
+    return FocusableActionWrapper(
+      showFocusHighlight: _isAndroidTV,
       onTap: onTap,
-      child: Row(
-        children: [
-          Icon(icon, color: Colors.white),
-          const SizedBox(width: 5),
-          Text(label, style: const TextStyle(color: Colors.white)),
-        ],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          children: [
+            Icon(icon, color: Colors.white),
+            const SizedBox(width: 5),
+            Text(label, style: const TextStyle(color: Colors.white)),
+          ],
+        ),
       ),
     );
   }
