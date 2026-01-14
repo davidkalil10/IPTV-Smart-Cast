@@ -18,6 +18,7 @@ import 'player_screen.dart';
 import 'movie_detail_screen.dart';
 import 'series_detail_screen.dart';
 import 'package:device_info_plus/device_info_plus.dart';
+import 'combined_live_view.dart';
 
 enum SortOption { defaultSort, topAdded, az, za }
 
@@ -722,6 +723,10 @@ class _ContentListScreenState extends State<ContentListScreen> {
       } else {
         // MOVIE / LIVE RESUME
         final progress = PlaybackService().getProgress(channel.id);
+
+        // Pause preview if playing
+        _previewPlayer.pause();
+
         await Navigator.push(
           context,
           MaterialPageRoute(
@@ -749,6 +754,9 @@ class _ContentListScreenState extends State<ContentListScreen> {
           ),
         );
       } else {
+        // Pause preview if playing
+        _previewPlayer.pause();
+
         await Navigator.push(
           context,
           MaterialPageRoute(
@@ -844,174 +852,35 @@ class _ContentListScreenState extends State<ContentListScreen> {
 
     return Row(
       children: [
-        // Column 2: Channel List
-        Expanded(
-          flex: 4,
-          child: Container(
-            color: const Color(0xFF151515),
-            child: Column(
-              children: [
-                _buildHeader(useStandardTextField),
-                Expanded(
-                  child: displayedContent.isEmpty
-                      ? const Center(
-                          child: Text(
-                            'Nenhum canal',
-                            style: TextStyle(color: Colors.grey),
-                          ),
-                        )
-                      : ListView.separated(
-                          itemCount: displayedContent.length,
-                          separatorBuilder: (_, __) =>
-                              const Divider(height: 1, color: Colors.white10),
-                          itemBuilder: (context, index) {
-                            final channel = displayedContent[index];
-                            final isPreviewing =
-                                _previewChannel?.id == channel.id;
+        // Column 1: Categories (Left side, handled by main build Row)
+        // ... Wait, the main build has Row(Left Sidebar, Expanded(Right Content)).
+        // So this _buildLiveLayout IS the Right Content.
+        // But the previous implementation returned a Row because it split the Right Content into List + Preview.
+        // Yes.
 
-                            return FocusableActionWrapper(
-                              showFocusHighlight: true,
-                              focusNode: index == 0 ? _firstContentFocus : null,
-                              onTap: () {
-                                if (isPreviewing) {
-                                  _handleChannelTap(channel);
-                                } else {
-                                  setState(() {
-                                    _previewChannel = channel;
-                                    _previewPlayer.open(
-                                      Media(channel.streamUrl),
-                                    );
-                                  });
-                                }
-                              },
-                              child: Container(
-                                color: isPreviewing
-                                    ? Colors.blue.withOpacity(0.2)
-                                    : null,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 12,
-                                ),
-                                child: Row(
-                                  children: [
-                                    SizedBox(
-                                      width: 40,
-                                      height: 40,
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(4),
-                                        child: (channel.logoUrl != null && channel.logoUrl!.isNotEmpty)
-                                            ? Image.network(
-                                                channel.logoUrl!,
-                                                fit: BoxFit.cover,
-                                                errorBuilder: (context, error, stackTrace) =>
-                                                    const Icon(Icons.tv, color: Colors.grey),
-                                              )
-                                            : const Icon(Icons.tv, color: Colors.grey),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Text(
-                                        channel.name,
-                                        style: TextStyle(
-                                          color: isPreviewing
-                                              ? Colors.blue
-                                              : Colors.white,
-                                          fontWeight: isPreviewing
-                                              ? FontWeight.bold
-                                              : FontWeight.normal,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    if (isPreviewing)
-                                      const Icon(
-                                        Icons.play_circle_fill,
-                                        color: Colors.blue,
-                                        size: 20,
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        // Column 3: Preview Area
-        Expanded(
-          flex: 6,
-          child: Column(
-            children: [
-              // Video Preview
-              AspectRatio(
-                aspectRatio: 16 / 9,
-                child: Container(
-                  color: Colors.black,
-                  child: _previewChannel == null
-                      ? const Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.tv, size: 48, color: Colors.grey),
-                              SizedBox(height: 8),
-                              Text(
-                                "Selecione um canal para visualizar",
-                                style: TextStyle(color: Colors.white54),
-                              ),
-                            ],
-                          ),
-                        )
-                      : Video(controller: _previewController),
-                ),
-              ),
-              // EPG Placeholder
-              Expanded(
-                child: Container(
-                  width: double.infinity,
-                  color: const Color(0xFF0A0A0A),
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (_previewChannel != null) ...[
-                        Text(
-                          _previewChannel!.name,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          "Categoria: ${_previewChannel!.category}",
-                          style: TextStyle(color: Colors.grey[400]),
-                        ),
-                        const SizedBox(height: 20),
-                        const Text(
-                          "Guia de Programação (EPG)",
-                          style: TextStyle(
-                            color: Colors.blue,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          "Informações detalhadas do programa atual não estão disponíveis no momento.",
-                          style: TextStyle(color: Colors.grey),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
+        // So we return a Row? No, we need to span the header.
+        // Structure:
+        // Column(
+        //   Header,
+        //   Expanded(Row(List, Preview))
+        // )
+        CombinedLiveView(
+          displayedContent: displayedContent,
+          isAndroidTV: _isAndroidTV,
+          useStandardTextField: useStandardTextField,
+          selectedCategory: _selectedCategory,
+          onHeaderBuild: () => _buildHeader(useStandardTextField),
+          onChannelTap: (c) => _handleChannelTap(c),
+          firstContentFocus: _firstContentFocus,
+          previewChannel: _previewChannel,
+          previewPlayer: _previewPlayer,
+          previewController: _previewController,
+          onPreviewSelect: (c) {
+            setState(() {
+              _previewChannel = c;
+              _previewPlayer.open(Media(c.streamUrl));
+            });
+          },
         ),
       ],
     );
