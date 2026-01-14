@@ -91,6 +91,7 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
     // Initial enforcement
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _enforceDefaultTracks();
+      if (mounted) _playFocusNode.requestFocus();
     });
 
     // Subscribe to streams
