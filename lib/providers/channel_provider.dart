@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/channel.dart';
+import '../models/epg_program.dart';
 import '../services/iptv_service.dart';
 
 class ChannelProvider with ChangeNotifier {
@@ -336,6 +337,40 @@ class ChannelProvider with ChangeNotifier {
     await prefs.setString('iptv_user', user);
     await prefs.setString('iptv_pass', pass);
     await prefs.setBool('is_xtream', true);
+  }
+
+  // EPG Logic
+  final Map<String, List<EpgProgram>> _epgData = {};
+
+  List<EpgProgram> getEpgForChannel(String channelId) {
+    return _epgData[channelId] ?? [];
+  }
+
+  Future<void> loadEpgForChannel(String streamId) async {
+    if (_savedUrl == null || _savedUser == null || _savedPass == null) return;
+
+    // Check if we already have data?
+    // For now, EPG usually needs to be fresh, but let's cache per session.
+    if (_epgData.containsKey(streamId) && _epgData[streamId]!.isNotEmpty) {
+      // Check if the last program is still in future?
+      // Simplified: Just return cached to avoid spamming server on channel switch.
+      // If user wants refresh, they can re-open app or we add a force flag later.
+      return;
+    }
+
+    try {
+      final programs = await _service.fetchShortEpg(
+        streamId,
+        _savedUrl!,
+        _savedUser!,
+        _savedPass!,
+      );
+
+      _epgData[streamId] = programs;
+      notifyListeners();
+    } catch (e) {
+      print('❌ Erro ao carregar EPG provider: $e');
+    }
   }
 
   void clearList() async {

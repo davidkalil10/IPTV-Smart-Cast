@@ -918,11 +918,21 @@ class _ContentListScreenState extends State<ContentListScreen> {
           previewChannel: _previewChannel,
           previewPlayer: _previewPlayer,
           previewController: _previewController,
+          epgPrograms: _previewChannel != null
+              ? Provider.of<ChannelProvider>(
+                  context,
+                ).getEpgForChannel(_previewChannel!.id)
+              : [],
           onPreviewSelect: (c) {
             setState(() {
               _previewChannel = c;
               _previewPlayer.open(Media(c.streamUrl));
             });
+            // Load EPG
+            Provider.of<ChannelProvider>(
+              context,
+              listen: false,
+            ).loadEpgForChannel(c.id);
           },
         ),
       ],

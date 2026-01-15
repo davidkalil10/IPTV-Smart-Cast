@@ -4,6 +4,8 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import '../models/channel.dart';
 import '../widgets/focusable_action_wrapper.dart';
+import '../models/epg_program.dart';
+import 'package:intl/intl.dart';
 
 // Since I cannot modify the imports easily without seeing the top of the file,
 // I will assume this class is being appended to content_list_screen.dart
@@ -25,6 +27,7 @@ class CombinedLiveView extends StatelessWidget {
   final Player previewPlayer;
   final VideoController? previewController;
   final Function(Channel) onPreviewSelect;
+  final List<EpgProgram> epgPrograms;
 
   const CombinedLiveView({
     super.key,
@@ -39,6 +42,7 @@ class CombinedLiveView extends StatelessWidget {
     required this.previewPlayer,
     required this.previewController,
     required this.onPreviewSelect,
+    required this.epgPrograms,
   });
 
   @override
@@ -212,48 +216,207 @@ class CombinedLiveView extends StatelessWidget {
                                   ),
                           ),
                         ),
-                        // EPG Placeholder (Scrollable)
+                        // EPG List (Scrollable)
                         Expanded(
                           child: Container(
                             width: double.infinity,
                             color: const Color(0xFF0A0A0A),
-                            child: SingleChildScrollView(
-                              padding: const EdgeInsets.all(24),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  if (previewChannel != null) ...[
-                                    Text(
-                                      previewChannel!.name,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 22,
-                                        fontWeight: FontWeight.bold,
+                            child: previewChannel == null
+                                ? const SizedBox.shrink()
+                                : Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Padding(
+                                        padding: const EdgeInsets.all(16.0),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              previewChannel!.name,
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 22,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              "Categoria: ${previewChannel!.category}",
+                                              style: TextStyle(
+                                                color: Colors.grey[400],
+                                              ),
+                                            ),
+                                            const SizedBox(height: 16),
+                                            const Text(
+                                              "Guia de Programação (EPG)",
+                                              style: TextStyle(
+                                                color: Colors.blue,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 16,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      "Categoria: ${previewChannel!.category}",
-                                      style: TextStyle(color: Colors.grey[400]),
-                                    ),
-                                    const SizedBox(height: 20),
-                                    const Text(
-                                      "Guia de Programação (EPG)",
-                                      style: TextStyle(
-                                        color: Colors.blue,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
+                                      Expanded(
+                                        child: epgPrograms.isEmpty
+                                            ? const Center(
+                                                child: Text(
+                                                  "Sem informações de programação.",
+                                                  style: TextStyle(
+                                                    color: Colors.grey,
+                                                  ),
+                                                ),
+                                              )
+                                            : ListView.builder(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 16,
+                                                      vertical: 8,
+                                                    ),
+                                                itemCount: epgPrograms.length,
+                                                itemBuilder: (context, index) {
+                                                  final program =
+                                                      epgPrograms[index];
+                                                  final isLive =
+                                                      program.isCurrent;
+                                                  final dateFormat = DateFormat(
+                                                    'HH:mm',
+                                                  );
+
+                                                  return Container(
+                                                    margin:
+                                                        const EdgeInsets.only(
+                                                          bottom: 12,
+                                                        ),
+                                                    padding:
+                                                        const EdgeInsets.all(
+                                                          12,
+                                                        ),
+                                                    decoration: BoxDecoration(
+                                                      color: isLive
+                                                          ? Colors.blue
+                                                                .withOpacity(
+                                                                  0.1,
+                                                                )
+                                                          : Colors.white
+                                                                .withOpacity(
+                                                                  0.05,
+                                                                ),
+                                                      border: isLive
+                                                          ? Border.all(
+                                                              color: Colors.blue
+                                                                  .withOpacity(
+                                                                    0.5,
+                                                                  ),
+                                                            )
+                                                          : null,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            8,
+                                                          ),
+                                                    ),
+                                                    child: Column(
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .start,
+                                                      children: [
+                                                        Row(
+                                                          children: [
+                                                            Text(
+                                                              "${dateFormat.format(program.start)} - ${dateFormat.format(program.end)}",
+                                                              style: TextStyle(
+                                                                color: isLive
+                                                                    ? Colors
+                                                                          .blueAccent
+                                                                    : Colors
+                                                                          .grey,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                              ),
+                                                            ),
+                                                            if (isLive) ...[
+                                                              const SizedBox(
+                                                                width: 8,
+                                                              ),
+                                                              Container(
+                                                                padding:
+                                                                    const EdgeInsets.symmetric(
+                                                                      horizontal:
+                                                                          6,
+                                                                      vertical:
+                                                                          2,
+                                                                    ),
+                                                                decoration: BoxDecoration(
+                                                                  color: Colors
+                                                                      .red,
+                                                                  borderRadius:
+                                                                      BorderRadius.circular(
+                                                                        4,
+                                                                      ),
+                                                                ),
+                                                                child: const Text(
+                                                                  "AGORA",
+                                                                  style: TextStyle(
+                                                                    color: Colors
+                                                                        .white,
+                                                                    fontSize:
+                                                                        10,
+                                                                    fontWeight:
+                                                                        FontWeight
+                                                                            .bold,
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                            ],
+                                                          ],
+                                                        ),
+                                                        const SizedBox(
+                                                          height: 4,
+                                                        ),
+                                                        Text(
+                                                          program.title,
+                                                          style:
+                                                              const TextStyle(
+                                                                color: Colors
+                                                                    .white,
+                                                                fontSize: 16,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w500,
+                                                              ),
+                                                        ),
+                                                        if (program
+                                                            .description
+                                                            .isNotEmpty) ...[
+                                                          const SizedBox(
+                                                            height: 4,
+                                                          ),
+                                                          Text(
+                                                            program.description,
+                                                            style: TextStyle(
+                                                              color: Colors
+                                                                  .grey[400],
+                                                              fontSize: 12,
+                                                            ),
+                                                            maxLines: 2,
+                                                            overflow:
+                                                                TextOverflow
+                                                                    .ellipsis,
+                                                          ),
+                                                        ],
+                                                      ],
+                                                    ),
+                                                  );
+                                                },
+                                              ),
                                       ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    const Text(
-                                      "Informações detalhadas do programa atual não estão disponíveis no momento.\n\nLorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.\n\nMais detalhes aqui para testar a rolagem...",
-                                      style: TextStyle(color: Colors.grey),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ),
+                                    ],
+                                  ),
                           ),
                         ),
                       ],

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import '../models/channel.dart';
+import '../models/epg_program.dart';
 import 'dns_service.dart';
 
 // ⚠️ FUNÇÃO PARA IGNORAR VERIFICAÇÃO DE CERTIFICADO SSL
@@ -209,6 +210,62 @@ class IptvService {
     } catch (e) {
       print('❌ Erro ao buscar info da Série: $e');
       return {};
+    }
+  }
+
+  // NEW: Fetch short EPG for a specific channel
+  Future<List<EpgProgram>> fetchShortEpg(
+    String streamId,
+    String url,
+    String user,
+    String password, {
+    int limit = 10,
+  }) async {
+    final apiUrl =
+        '$url/player_api.php?username=$user&password=$password&action=get_short_epg&stream_id=$streamId&limit=$limit';
+
+    try {
+      final httpClient = _createHttpClient();
+
+      // DNS Logic
+      Uri uri = Uri.parse(apiUrl);
+      final resolvedIp = await DnsService().resolve(uri.host);
+      String requestUrl = apiUrl;
+      if (resolvedIp != uri.host) {
+        requestUrl = apiUrl.replaceFirst(uri.host, resolvedIp);
+      }
+
+      final request = await httpClient.getUrl(Uri.parse(requestUrl));
+      if (resolvedIp != uri.host) {
+        request.headers.set('Host', uri.host);
+      }
+
+      final response = await request.close();
+
+      if (response.statusCode == 200) {
+        final responseBody = await response.transform(utf8.decoder).join();
+        httpClient.close();
+
+        final data = json.decode(responseBody);
+
+        // EPG response format can vary.
+        // Usually: { "epg_listings": [ ... ] } or simple list depending on endpoint.
+        // get_short_epg standard is: { "epg_listings": [ ... ] }
+
+        List<dynamic> listings = [];
+        if (data is Map && data.containsKey('epg_listings')) {
+          listings = data['epg_listings'];
+        } else if (data is List) {
+          listings = data;
+        }
+
+        return listings.map((e) => EpgProgram.fromJson(e)).toList();
+      }
+      httpClient.close();
+      return [];
+    } catch (e) {
+      print('❌ Erro ao buscar EPG: $e');
+      return [];
     }
   }
 
