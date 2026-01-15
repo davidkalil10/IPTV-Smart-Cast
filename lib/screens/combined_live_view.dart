@@ -216,20 +216,22 @@ class CombinedLiveView extends StatelessWidget {
                                   ),
                           ),
                         ),
-                        // EPG List (Scrollable)
+                        // EPG List (Unified Scrollable Area)
                         Expanded(
                           child: Container(
                             width: double.infinity,
                             color: const Color(0xFF0A0A0A),
                             child: previewChannel == null
                                 ? const SizedBox.shrink()
-                                : Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Padding(
-                                        padding: const EdgeInsets.all(16.0),
-                                        child: Column(
+                                : ListView.builder(
+                                    padding: const EdgeInsets.all(16.0),
+                                    itemCount: epgPrograms.isEmpty
+                                        ? 1
+                                        : epgPrograms.length + 1,
+                                    itemBuilder: (context, index) {
+                                      // HEADER (Index 0)
+                                      if (index == 0) {
+                                        return Column(
                                           crossAxisAlignment:
                                               CrossAxisAlignment.start,
                                           children: [
@@ -258,164 +260,129 @@ class CombinedLiveView extends StatelessWidget {
                                                 fontSize: 16,
                                               ),
                                             ),
-                                          ],
-                                        ),
-                                      ),
-                                      Expanded(
-                                        child: epgPrograms.isEmpty
-                                            ? const Center(
-                                                child: Text(
-                                                  "Sem informações de programação.",
-                                                  style: TextStyle(
-                                                    color: Colors.grey,
+                                            const SizedBox(height: 8),
+                                            if (epgPrograms.isEmpty)
+                                              const Padding(
+                                                padding: EdgeInsets.only(
+                                                  top: 20,
+                                                ),
+                                                child: Center(
+                                                  child: Text(
+                                                    "Sem informações de programação.",
+                                                    style: TextStyle(
+                                                      color: Colors.grey,
+                                                    ),
                                                   ),
                                                 ),
-                                              )
-                                            : ListView.builder(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 16,
-                                                      vertical: 8,
-                                                    ),
-                                                itemCount: epgPrograms.length,
-                                                itemBuilder: (context, index) {
-                                                  final program =
-                                                      epgPrograms[index];
-                                                  final isLive =
-                                                      program.isCurrent;
-                                                  final dateFormat = DateFormat(
-                                                    'HH:mm',
-                                                  );
-
-                                                  return Container(
-                                                    margin:
-                                                        const EdgeInsets.only(
-                                                          bottom: 12,
-                                                        ),
-                                                    padding:
-                                                        const EdgeInsets.all(
-                                                          12,
-                                                        ),
-                                                    decoration: BoxDecoration(
-                                                      color: isLive
-                                                          ? Colors.blue
-                                                                .withOpacity(
-                                                                  0.1,
-                                                                )
-                                                          : Colors.white
-                                                                .withOpacity(
-                                                                  0.05,
-                                                                ),
-                                                      border: isLive
-                                                          ? Border.all(
-                                                              color: Colors.blue
-                                                                  .withOpacity(
-                                                                    0.5,
-                                                                  ),
-                                                            )
-                                                          : null,
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            8,
-                                                          ),
-                                                    ),
-                                                    child: Column(
-                                                      crossAxisAlignment:
-                                                          CrossAxisAlignment
-                                                              .start,
-                                                      children: [
-                                                        Row(
-                                                          children: [
-                                                            Text(
-                                                              "${dateFormat.format(program.start)} - ${dateFormat.format(program.end)}",
-                                                              style: TextStyle(
-                                                                color: isLive
-                                                                    ? Colors
-                                                                          .blueAccent
-                                                                    : Colors
-                                                                          .grey,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .bold,
-                                                              ),
-                                                            ),
-                                                            if (isLive) ...[
-                                                              const SizedBox(
-                                                                width: 8,
-                                                              ),
-                                                              Container(
-                                                                padding:
-                                                                    const EdgeInsets.symmetric(
-                                                                      horizontal:
-                                                                          6,
-                                                                      vertical:
-                                                                          2,
-                                                                    ),
-                                                                decoration: BoxDecoration(
-                                                                  color: Colors
-                                                                      .red,
-                                                                  borderRadius:
-                                                                      BorderRadius.circular(
-                                                                        4,
-                                                                      ),
-                                                                ),
-                                                                child: const Text(
-                                                                  "AGORA",
-                                                                  style: TextStyle(
-                                                                    color: Colors
-                                                                        .white,
-                                                                    fontSize:
-                                                                        10,
-                                                                    fontWeight:
-                                                                        FontWeight
-                                                                            .bold,
-                                                                  ),
-                                                                ),
-                                                              ),
-                                                            ],
-                                                          ],
-                                                        ),
-                                                        const SizedBox(
-                                                          height: 4,
-                                                        ),
-                                                        Text(
-                                                          program.title,
-                                                          style:
-                                                              const TextStyle(
-                                                                color: Colors
-                                                                    .white,
-                                                                fontSize: 16,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .w500,
-                                                              ),
-                                                        ),
-                                                        if (program
-                                                            .description
-                                                            .isNotEmpty) ...[
-                                                          const SizedBox(
-                                                            height: 4,
-                                                          ),
-                                                          Text(
-                                                            program.description,
-                                                            style: TextStyle(
-                                                              color: Colors
-                                                                  .grey[400],
-                                                              fontSize: 12,
-                                                            ),
-                                                            maxLines: 2,
-                                                            overflow:
-                                                                TextOverflow
-                                                                    .ellipsis,
-                                                          ),
-                                                        ],
-                                                      ],
-                                                    ),
-                                                  );
-                                                },
                                               ),
-                                      ),
-                                    ],
+                                          ],
+                                        );
+                                      }
+
+                                      // DATA ITEMS (Index > 0)
+                                      final program = epgPrograms[index - 1];
+                                      final isLive = program.isCurrent;
+                                      final dateFormat = DateFormat('HH:mm');
+
+                                      return FocusableActionWrapper(
+                                        showFocusHighlight: isAndroidTV,
+                                        onTap: () {
+                                          // Optional: Show full details dialog
+                                        },
+                                        child: Container(
+                                          margin: const EdgeInsets.only(
+                                            bottom: 12,
+                                          ),
+                                          padding: const EdgeInsets.all(12),
+                                          decoration: BoxDecoration(
+                                            color: isLive
+                                                ? Colors.blue.withOpacity(0.1)
+                                                : Colors.white.withOpacity(
+                                                    0.05,
+                                                  ),
+                                            border: isLive
+                                                ? Border.all(
+                                                    color: Colors.blue
+                                                        .withOpacity(0.5),
+                                                  )
+                                                : null,
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                          ),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Row(
+                                                children: [
+                                                  Text(
+                                                    "${dateFormat.format(program.start)} - ${dateFormat.format(program.end)}",
+                                                    style: TextStyle(
+                                                      color: isLive
+                                                          ? Colors.blueAccent
+                                                          : Colors.grey,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                    ),
+                                                  ),
+                                                  if (isLive) ...[
+                                                    const SizedBox(width: 8),
+                                                    Container(
+                                                      padding:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 6,
+                                                            vertical: 2,
+                                                          ),
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.red,
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              4,
+                                                            ),
+                                                      ),
+                                                      child: const Text(
+                                                        "AGORA",
+                                                        style: TextStyle(
+                                                          color: Colors.white,
+                                                          fontSize: 10,
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ],
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                program.title,
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                              if (program
+                                                  .description
+                                                  .isNotEmpty) ...[
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  program.description,
+                                                  style: TextStyle(
+                                                    color: Colors.grey[400],
+                                                    fontSize: 12,
+                                                  ),
+                                                  maxLines: 2,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                              ],
+                                            ],
+                                          ),
+                                        ),
+                                      );
+                                    },
                                   ),
                           ),
                         ),
