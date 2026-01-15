@@ -8,6 +8,10 @@ import 'focusable_action_wrapper.dart';
 import '../models/channel.dart';
 import '../services/cast_service.dart';
 import 'package:cast_plus/cast.dart';
+import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
+import '../providers/channel_provider.dart';
+import '../models/epg_program.dart';
 
 class VideoControlsOverlay extends StatefulWidget {
   final Player player;
@@ -101,6 +105,15 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
     _duration = widget.player.state.duration;
     _isPlaying = widget.player.state.playing;
     _playbackSpeed = widget.player.state.rate;
+
+    // Ensure EPG is loaded
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<ChannelProvider>(
+        context,
+        listen: false,
+      ).loadEpgForChannel(widget.channel.id);
+    });
+
     _selectedVideoTrack = widget.player.state.track.video;
     _selectedAudioTrack = widget.player.state.track.audio;
     _selectedSubtitleTrack = widget.player.state.track.subtitle;
@@ -970,6 +983,10 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
                         ),
                         child: Column(
                           children: [
+                            // EPG Info (Now / Next)
+                            _buildEpgInfo(),
+                            const SizedBox(height: 8),
+
                             Row(
                               children: [
                                 Text(
@@ -1638,6 +1655,122 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildEpgInfo() {
+    return Consumer<ChannelProvider>(
+      builder: (context, provider, child) {
+        final epg = provider.getEpgForChannel(widget.channel.id);
+        if (epg.isEmpty) return const SizedBox.shrink();
+
+        final now = DateTime.now();
+        EpgProgram? currentProgram;
+        EpgProgram? nextProgram;
+
+        // Find Current
+        try {
+          currentProgram = epg.firstWhere((p) => p.isCurrent);
+        } catch (_) {}
+
+        // Find Next (Program immediately after Current, or just the next one in list if current matched)
+        if (currentProgram != null) {
+          try {
+            // Assuming sorted list, next is the one directly after current in time
+            // Or just finding the one that starts >= current.end
+            nextProgram = epg.firstWhere(
+              (p) =>
+                  p.start.isAtSameMomentAs(currentProgram!.end) ||
+                  p.start.isAfter(currentProgram!.end),
+            );
+          } catch (_) {}
+        } else {
+          // If no current program (gap?), find next upcoming
+          try {
+            nextProgram = epg.firstWhere((p) => p.start.isAfter(now));
+          } catch (_) {}
+        }
+
+        if (currentProgram == null && nextProgram == null) {
+          return const SizedBox.shrink();
+        }
+
+        final dateFormat = DateFormat('HH:mm');
+
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.6),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (currentProgram != null)
+                Row(
+                  children: [
+                    const Text(
+                      "Agora: ",
+                      style: TextStyle(
+                        color: Colors.blueAccent,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        "${currentProgram.title}",
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Text(
+                      "${dateFormat.format(currentProgram.start)} - ${dateFormat.format(currentProgram.end)}",
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              if (currentProgram != null && nextProgram != null)
+                const Divider(color: Colors.white24, height: 12),
+              if (nextProgram != null)
+                Row(
+                  children: [
+                    Text(
+                      "Próximo: ",
+                      style: TextStyle(
+                        color: Colors.grey[400],
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        "${nextProgram.title}",
+                        style: TextStyle(color: Colors.grey[300], fontSize: 14),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Text(
+                      "${dateFormat.format(nextProgram.start)} - ${dateFormat.format(nextProgram.end)}",
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 
