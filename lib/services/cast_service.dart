@@ -62,12 +62,15 @@ class CastService extends ChangeNotifier {
               msg['status'] is List &&
               (msg['status'] as List).isNotEmpty) {
             final status = (msg['status'] as List).first;
+            print("Received MEDIA_STATUS: $status");
             if (status is Map) {
               if (status.containsKey('mediaSessionId')) {
                 _mediaSessionId = status['mediaSessionId'];
+                print("Updated mediaSessionId: $_mediaSessionId");
               }
               if (status.containsKey('playerState')) {
                 _isPlaying = status['playerState'] == 'PLAYING';
+                print("Updated playerState: $_isPlaying");
               }
               notifyListeners();
             }
@@ -109,14 +112,26 @@ class CastService extends ChangeNotifier {
   }
 
   void seek(double positionInSeconds) {
-    if (_session == null || _mediaSessionId == null) return;
-    _session!.sendMessage('urn:x-cast:com.google.cast.media', {
+    if (_session == null) {
+      print("Seek failed: Session is null");
+      return;
+    }
+    if (_mediaSessionId == null) {
+      print("Seek failed: mediaSessionId is null");
+      return;
+    }
+
+    // Simplified SEEK message to avoid conflict
+    final message = {
       'type': 'SEEK',
       'mediaSessionId': _mediaSessionId,
       'currentTime': positionInSeconds,
       'requestId': DateTime.now().millisecondsSinceEpoch,
-      'resumeState': 'PLAYBACK_START', // Auto-resume
-    });
+    };
+
+    print("Sending SEEK message: $message");
+
+    _session!.sendMessage('urn:x-cast:com.google.cast.media', message);
   }
 
   void playOrPause() {
@@ -149,7 +164,23 @@ class CastService extends ChangeNotifier {
   }) async {
     if (_session == null) return;
 
-    print("Starting cast media load for $url at ${startTime ?? 0}");
+    // Robust MIME type detection
+    String contentType = 'video/mp4';
+    if (url.contains('.m3u8')) {
+      contentType = 'application/vnd.apple.mpegurl'; // HLS standard for Cast
+    } else if (url.contains('.ts')) {
+      contentType = 'video/mp2t'; // MPEG-TS
+    } else if (url.contains('.mpd')) {
+      contentType = 'application/dash+xml';
+    } else if (url.contains('.webm')) {
+      contentType = 'video/webm';
+    } else if (url.contains('.mkv')) {
+      contentType = 'video/webm';
+    }
+
+    print(
+      "Starting cast media load for $url at ${startTime ?? 0} with type $contentType",
+    );
     try {
       final message = {
         'type': 'LOAD',
@@ -157,7 +188,7 @@ class CastService extends ChangeNotifier {
         'currentTime': startTime ?? 0,
         'media': {
           'contentId': url,
-          'contentType': 'video/mp4',
+          'contentType': contentType,
           'streamType': 'BUFFERED',
           'metadata': {
             'metadataType': 0, // Generic
