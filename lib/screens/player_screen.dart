@@ -12,6 +12,7 @@ import '../widgets/focusable_action_wrapper.dart';
 import 'dart:async';
 import 'package:simple_pip_mode/simple_pip.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/cast_service.dart';
 
 class PlayerScreen extends StatefulWidget {
   final Channel channel;
@@ -162,6 +163,19 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
     // Start tracking progress
     _startProgressTracking();
+
+    // Auto-Cast Check
+    if (CastService().isConnected) {
+      debugPrint("PLAYER: Cast is connected. Switching to remote playback.");
+      // Pause local immediately
+      _player.pause();
+      // Load media on Cast
+      CastService().loadMedia(
+        widget.channel.streamUrl,
+        title: widget.channel.name,
+        imageUrl: widget.channel.logoUrl,
+      );
+    }
   }
 
   bool _isUserRestart = false;

@@ -159,7 +159,27 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
         }
       }),
     );
+
+    // Listen to CastService
+    CastService().addListener(_onCastStateChanged);
+
     _checkDeviceType();
+  }
+
+  void _onCastStateChanged() {
+    if (mounted) {
+      setState(() {
+        // Force redraw to update buttons rely on CastService.isConnected
+        _isPlaying = CastService().isConnected
+            ? CastService().isPlaying
+            : widget.player.state.playing;
+      });
+
+      // Pause local player if cast connects
+      if (CastService().isConnected && widget.player.state.playing) {
+        widget.player.pause();
+      }
+    }
   }
 
   Future<void> _checkDeviceType() async {
@@ -230,6 +250,7 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
     _episodesFocusNode.dispose();
     _aspectRatioFocusNode.dispose();
     _speedFocusNode.dispose();
+    CastService().removeListener(_onCastStateChanged);
     super.dispose();
   }
 
@@ -285,12 +306,24 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
   void _seekRelative(Duration amount) {
     _resetHideTimer();
     final newPos = _position + amount;
-    widget.player.seek(newPos);
+
+    if (CastService().isConnected) {
+      // Cast seek uses seconds
+      CastService().seek(newPos.inSeconds.toDouble());
+      // Optimistic update
+      setState(() => _position = newPos);
+    } else {
+      widget.player.seek(newPos);
+    }
   }
 
   void _togglePlay() {
     _resetHideTimer();
-    widget.player.playOrPause();
+    if (CastService().isConnected) {
+      CastService().playOrPause();
+    } else {
+      widget.player.playOrPause();
+    }
   }
 
   void _showOsdMessage(String msg) {
@@ -715,9 +748,14 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
                               FocusableActionWrapper(
                                 showFocusHighlight: _isAndroidTV,
                                 onTap: _showCastDialog,
-                                child: const Padding(
-                                  padding: EdgeInsets.all(8.0),
-                                  child: Icon(Icons.cast, color: Colors.white),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(8.0),
+                                  child: Icon(
+                                    Icons.cast,
+                                    color: CastService().isConnected
+                                        ? Colors.blue
+                                        : Colors.white,
+                                  ),
                                 ),
                               ),
                             if (widget.channel.type != 'live')
@@ -1309,6 +1347,44 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
 
   void _showCastDialog() {
     _resetHideTimer();
+
+    if (CastService().isConnected) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: Colors.grey[900],
+          title: const Text(
+            'Chromecast',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: const Text(
+            'Deseja desconectar do dispositivo?',
+            style: TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text(
+                'Cancelar',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                CastService().disconnect();
+                Navigator.pop(ctx);
+              },
+              child: const Text(
+                'Desconectar',
+                style: TextStyle(color: Colors.redAccent),
+              ),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     CastService().startDiscovery();
 
     showDialog(
@@ -1357,13 +1433,10 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
                       ),
                       leading: const Icon(Icons.tv, color: Colors.white),
                       onTap: () {
+                        // Close the device selection dialog
                         Navigator.pop(context);
-                        CastService().connect(device).then((_) {
-                          CastService().loadMedia(
-                            widget.channel.streamUrl,
-                            title: widget.channel.name,
-                          );
-                        });
+                        // Connect using main context
+                        _connectAndLoad(device);
                       },
                     );
                   },
@@ -1383,6 +1456,47 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
         );
       },
     ).then((_) => CastService().stopDiscovery());
+  }
+
+  Future<void> _connectAndLoad(CastDevice device) async {
+    // Show Loading Dialog using the main State context
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        content: const Row(
+          children: [
+            CircularProgressIndicator(color: Colors.purpleAccent),
+            SizedBox(width: 20),
+            Text(
+              "Conectando... (Aguarde)",
+              style: TextStyle(color: Colors.white),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      await CastService().connect(device);
+      // Wait for receiver app to launch fully
+      // Increased delay to 8s based on user feedback
+      await Future.delayed(const Duration(seconds: 8));
+    } catch (e) {
+      debugPrint("Connection error: $e");
+    }
+
+    if (mounted) {
+      // Pop the loading dialog using the main State context
+      Navigator.of(context).pop();
+
+      // Now load
+      CastService().loadMedia(
+        widget.channel.streamUrl,
+        title: widget.channel.name,
+      );
+    }
   }
 
   Widget _buildBottomAction(
