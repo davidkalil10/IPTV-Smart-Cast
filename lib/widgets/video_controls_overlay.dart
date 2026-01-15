@@ -57,6 +57,7 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
   int _aspectRatioIndex = 0;
   String? _osdMessage;
   Timer? _osdTimer;
+  Timer? _castTimer;
 
   // Track State
   VideoTrack? _selectedVideoTrack;
@@ -164,6 +165,24 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
     CastService().addListener(_onCastStateChanged);
 
     _checkDeviceType();
+
+    // If already connected when opening this overlay (new video), load content
+    if (CastService().isConnected) {
+      // Pause local immediately
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        widget.player.pause();
+
+        // If we are just starting this screen, the player position is likely 0 or the resume point.
+        // We should use that.
+        final startPos = widget.player.state.position.inSeconds.toDouble();
+
+        await CastService().loadMedia(
+          widget.channel.streamUrl,
+          title: widget.channel.name,
+          startTime: startPos,
+        );
+      });
+    }
   }
 
   void _onCastStateChanged() {
@@ -180,6 +199,29 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
         widget.player.pause();
       }
     }
+
+    // Cast Timer Management
+    if (CastService().isConnected) {
+      _startCastTimer();
+    } else {
+      _stopCastTimer();
+    }
+  }
+
+  void _startCastTimer() {
+    _castTimer?.cancel();
+    _castTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted && CastService().isConnected) {
+        setState(() {
+          _position = Duration(seconds: CastService().position.floor());
+        });
+      }
+    });
+  }
+
+  void _stopCastTimer() {
+    _castTimer?.cancel();
+    _castTimer = null;
   }
 
   Future<void> _checkDeviceType() async {
@@ -241,13 +283,12 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
     }
     _hideTimer?.cancel();
     _osdTimer?.cancel();
-    _osdTimer?.cancel();
-    _osdTimer?.cancel();
     _backgroundFocusNode.dispose();
     _playFocusNode.dispose();
     _fontSizeFocusNode.dispose();
     _settingsBackFocusNode.dispose();
     _episodesFocusNode.dispose();
+    _castTimer?.cancel();
     _aspectRatioFocusNode.dispose();
     _speedFocusNode.dispose();
     CastService().removeListener(_onCastStateChanged);
@@ -560,6 +601,10 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
 
   @override
   Widget build(BuildContext context) {
+    if (CastService().isConnected) {
+      return _buildCastUI();
+    }
+
     if (_isLocked) {
       return WillPopScope(
         onWillPop: () async {
@@ -1437,8 +1482,13 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
               ),
             ),
             TextButton(
-              onPressed: () {
-                CastService().disconnect();
+              onPressed: () async {
+                final pos = CastService().position;
+                await CastService().disconnect();
+                if (mounted) {
+                  await widget.player.seek(Duration(seconds: pos.toInt()));
+                  await widget.player.play();
+                }
                 Navigator.pop(ctx);
               },
               child: const Text(
@@ -1559,10 +1609,11 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
       Navigator.of(context).pop();
 
       // Now load
+      final currentPos = widget.player.state.position.inSeconds.toDouble();
       CastService().loadMedia(
         widget.channel.streamUrl,
         title: widget.channel.name,
-        startTime: _position.inSeconds.toDouble(),
+        startTime: currentPos > 0 ? currentPos : 0,
       );
     }
   }
@@ -1586,6 +1637,190 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
             Text(label, style: const TextStyle(color: Colors.white)),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildCastUI() {
+    return Container(
+      color: Colors.black,
+      child: Stack(
+        children: [
+          // Background Placeholder
+          Center(
+            child: Opacity(
+              opacity: 0.3,
+              child: Icon(Icons.tv, size: 200, color: Colors.white10),
+            ),
+          ),
+
+          SafeArea(
+            child: Column(
+              children: [
+                // Top Bar with Disconnect
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back, color: Colors.white),
+                        onPressed: () {
+                          if (widget.onExit != null) widget.onExit!();
+                          Navigator.pop(context);
+                        },
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.cast_connected,
+                          color: Colors.blue,
+                        ),
+                        onPressed: _showCastDialog,
+                      ),
+                    ],
+                  ),
+                ),
+
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      // Removed large central icon to save space
+                      const SizedBox(height: 16),
+                      Column(
+                        children: [
+                          Text(
+                            "Transmitindo para ${CastService().connectedDeviceName}",
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            widget.channel.name,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white54,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Controls
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          IconButton(
+                            icon: const Icon(
+                              Icons.replay_10,
+                              color: Colors.white,
+                              size: 36,
+                            ),
+                            onPressed: () => CastService().seek(
+                              (CastService().position - 10).clamp(
+                                0.0,
+                                double.infinity,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 32),
+                          IconButton(
+                            icon: Icon(
+                              CastService().isPlaying
+                                  ? Icons.pause_circle_filled
+                                  : Icons.play_circle_fill,
+                              color: Colors.blue,
+                              size: 64,
+                            ),
+                            onPressed: () => CastService().playOrPause(),
+                          ),
+                          const SizedBox(width: 32),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.forward_10,
+                              color: Colors.white,
+                              size: 36,
+                            ),
+                            onPressed: () =>
+                                CastService().seek(CastService().position + 10),
+                          ),
+                        ],
+                      ),
+
+                      // Slider
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 40,
+                          vertical: 24,
+                        ),
+                        child: Row(
+                          children: [
+                            Text(
+                              _formatDuration(
+                                Duration(
+                                  seconds: CastService().position.toInt(),
+                                ),
+                              ),
+                              style: const TextStyle(color: Colors.white70),
+                            ),
+                            Expanded(
+                              child: Slider(
+                                value: CastService().position.clamp(
+                                  0.0,
+                                  _duration.inSeconds.toDouble() > 0
+                                      ? _duration.inSeconds.toDouble()
+                                      : double.infinity,
+                                ),
+                                min: 0,
+                                max: _duration.inSeconds.toDouble() > 0
+                                    ? _duration.inSeconds.toDouble()
+                                    : (CastService().position + 60),
+                                onChanged: (val) {
+                                  // Optimistic
+                                  setState(() {
+                                    _position = Duration(seconds: val.toInt());
+                                  });
+                                },
+                                onChangeEnd: (val) {
+                                  CastService().seek(val);
+                                },
+                                activeColor: Colors.blue,
+                                inactiveColor: Colors.white24,
+                              ),
+                            ),
+                            Text(
+                              _formatDuration(_duration),
+                              style: const TextStyle(color: Colors.white70),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 20),
+                      OutlinedButton.icon(
+                        onPressed: _showCastDialog,
+                        icon: const Icon(Icons.stop, color: Colors.red),
+                        label: const Text(
+                          "Parar Transmissão",
+                          style: TextStyle(color: Colors.red),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Colors.red),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

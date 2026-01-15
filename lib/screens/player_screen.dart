@@ -99,7 +99,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     // Play the media (start paused if we are going to seek)
     await _player.open(
       Media(widget.channel.streamUrl),
-      play: widget.startPosition == null,
+      play: widget.startPosition == null && !CastService().isConnected,
     );
 
     // Listen for errors
@@ -138,27 +138,55 @@ class _PlayerScreenState extends State<PlayerScreen> {
         await _player.seek(widget.startPosition!);
         debugPrint("PLAYER: Seek done.");
 
-        // Resume
-        await _player.play();
-        debugPrint("PLAYER: Play called.");
+        // If casting, load media on receiver now that we know the position, but pause local if not already
+        if (CastService().isConnected) {
+          print("PLAYER: Auto-Casting detected. Loading media on Cast...");
+          await _player.pause(); // Ensure local is paused
 
-        // Verification / Retry logic
-        // Sometimes stream starts from 0 anyway. Check after a delay.
-        await Future.delayed(const Duration(seconds: 2));
-        if (mounted &&
-            _player.state.position.inSeconds <
-                (widget.startPosition!.inSeconds - 10)) {
-          debugPrint(
-            "PLAYER: Position reset detected. Reseeking to ${widget.startPosition}...",
+          await CastService().loadMedia(
+            widget.channel.streamUrl,
+            title: widget.channel.name,
+            startTime: widget.startPosition!.inSeconds.toDouble(),
           );
-          await _player.seek(widget.startPosition!);
+        } else {
+          // Resume local
+          await _player.play();
+          debugPrint("PLAYER: Play called.");
+
+          // Verification / Retry logic for local playback...
+          // Sometimes stream starts from 0 anyway. Check after a delay.
+          await Future.delayed(const Duration(seconds: 2));
+          if (mounted &&
+              _player.state.position.inSeconds <
+                  (widget.startPosition!.inSeconds - 10)) {
+            debugPrint(
+              "PLAYER: Position reset detected. Reseeking to ${widget.startPosition}...",
+            );
+            await _player.seek(widget.startPosition!);
+          }
         }
       } catch (e) {
         debugPrint("PLAYER: Seek error: $e");
-        await _player.play();
+        // Fallback play if local
+        if (!CastService().isConnected) {
+          await _player.play();
+        }
       }
     } else {
       debugPrint("PLAYER: No startPosition provided. Starting normally.");
+
+      // Auto-Cast check for Start 0
+      if (CastService().isConnected) {
+        print(
+          "PLAYER: Auto-Casting detected (Start 0). Loading media on Cast...",
+        );
+        await _player.pause();
+        await CastService().loadMedia(
+          widget.channel.streamUrl,
+          title: widget.channel.name,
+          startTime: 0,
+        );
+      }
     }
 
     // Start tracking progress
