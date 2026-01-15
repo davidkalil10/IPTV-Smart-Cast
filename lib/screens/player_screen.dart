@@ -82,7 +82,28 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   Future<void> _initializePlayer() async {
     // Create a Player instance
-    _player = Player();
+    _player = Player(configuration: const PlayerConfiguration(vo: 'gpu'));
+
+    // Apply Robust MPV Options for HLS & Corrections
+    if (_player.platform is GlobalKey) {
+      // Mock
+    } else {
+      final platform = _player.platform as dynamic;
+      try {
+        // Critical Fix for "force-seekable" error
+        platform.setProperty('force-seekable', 'yes');
+
+        // Robustness / Reconnect
+        platform.setProperty('reconnect', 'yes');
+        platform.setProperty('reconnect-delay-max', '5');
+        platform.setProperty('reconnect-streamed', 'yes');
+        platform.setProperty('reconnect-on-http-error', 'yes');
+        platform.setProperty('network-timeout', '15');
+        platform.setProperty('hls-bitrate', 'max');
+      } catch (e) {
+        debugPrint('Error setting MPV properties: $e');
+      }
+    }
 
     // Check HW Decoding preference
     final prefs = await SharedPreferences.getInstance();

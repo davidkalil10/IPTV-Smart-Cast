@@ -112,10 +112,21 @@ class _ContentListScreenState extends State<ContentListScreen> {
         try {
           // Use 'mediacodec' explicitly for Android TV as 'auto' can be conservative
           final codec = Platform.isAndroid ? 'mediacodec' : 'auto';
-          (_previewPlayer.platform as dynamic).setProperty('hwdec', codec);
+          final platform = _previewPlayer.platform as dynamic;
+
+          platform.setProperty('hwdec', codec);
           debugPrint("PREVIEW: Hardware Decoding (hwdec) set to '$codec'");
+
+          // Robustness for Live Streams (Mini Player)
+          platform.setProperty('force-seekable', 'yes');
+          platform.setProperty('reconnect', 'yes');
+          platform.setProperty('reconnect-delay-max', '5');
+          platform.setProperty('reconnect-streamed', 'yes');
+          platform.setProperty('reconnect-on-http-error', 'yes');
+          platform.setProperty('network-timeout', '15');
+          platform.setProperty('hls-bitrate', 'max');
         } catch (e) {
-          debugPrint("PREVIEW: Error setting hwdec: $e");
+          debugPrint("PREVIEW: Error setting properties: $e");
         }
       }
     } else {
