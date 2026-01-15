@@ -60,7 +60,7 @@ class _ContentListScreenState extends State<ContentListScreen> {
 
   // Preview Player State
   late final Player _previewPlayer;
-  late VideoController _previewController;
+  VideoController? _previewController;
   Channel? _previewChannel;
 
   @override
@@ -68,13 +68,8 @@ class _ContentListScreenState extends State<ContentListScreen> {
     super.initState();
     _firstContentFocus = FocusNode();
 
-    // Initialize Preview Player
-    _previewPlayer = Player();
-    _previewController = VideoController(_previewPlayer);
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadContent();
-    });
+    // Async Initialization of Preview Player
+    _initializePreviewPlayer();
 
     _checkDeviceType();
 
@@ -101,26 +96,52 @@ class _ContentListScreenState extends State<ContentListScreen> {
         _contentSearchQuery = _contentSearchController.text;
       });
     });
-
-    _applyVideoSettings();
   }
 
-  Future<void> _applyVideoSettings() async {
+  Future<void> _initializePreviewPlayer() async {
+    // 1. Create native Player
+    _previewPlayer = Player();
+
+    // 2. Read Preference
     final prefs = await SharedPreferences.getInstance();
     final enableHw = prefs.getBool('enable_hw_acceleration') ?? true;
 
-    // Only re-create if disabled (default is enabled)
-    if (!enableHw) {
-      if (mounted) {
-        setState(() {
-          _previewController = VideoController(
-            _previewPlayer,
-            configuration: VideoControllerConfiguration(
-              enableHardwareAcceleration: false,
-            ),
-          );
-        });
+    // 3. Configure HW Decoding (MPV)
+    if (enableHw) {
+      if (_previewPlayer.platform is! GlobalKey) {
+        try {
+          // Use 'mediacodec' explicitly for Android TV as 'auto' can be conservative
+          final codec = Platform.isAndroid ? 'mediacodec' : 'auto';
+          (_previewPlayer.platform as dynamic).setProperty('hwdec', codec);
+          debugPrint("PREVIEW: Hardware Decoding (hwdec) set to '$codec'");
+        } catch (e) {
+          debugPrint("PREVIEW: Error setting hwdec: $e");
+        }
       }
+    } else {
+      try {
+        if (_previewPlayer.platform is! GlobalKey) {
+          (_previewPlayer.platform as dynamic).setProperty('hwdec', 'no');
+          debugPrint("PREVIEW: Hardware Decoding (hwdec) disabled");
+        }
+      } catch (e) {
+        debugPrint("PREVIEW: Error setting hwdec: $e");
+      }
+    }
+
+    // 4. Create Controller (Rendering Surface)
+    if (mounted) {
+      setState(() {
+        _previewController = VideoController(
+          _previewPlayer,
+          configuration: VideoControllerConfiguration(
+            enableHardwareAcceleration: enableHw,
+          ),
+        );
+      });
+
+      // Load content only after full initialization
+      _loadContent();
     }
   }
 

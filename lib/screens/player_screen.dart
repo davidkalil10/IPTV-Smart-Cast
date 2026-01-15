@@ -88,6 +88,30 @@ class _PlayerScreenState extends State<PlayerScreen> {
     final prefs = await SharedPreferences.getInstance();
     final enableHw = prefs.getBool('enable_hw_acceleration') ?? true;
 
+    // Apply MPV Hardware Decoding if enabled
+    if (enableHw) {
+      if (_player.platform is GlobalKey) {
+        // Unlikely, but just in case of mock
+      } else {
+        // Access underlying native player to set MPV options
+        // 'mediacodec' is specific to Android, 'auto' is general safe default
+        // We use dynamic dispatch because the specific NativePlayer type isn't always exported
+        try {
+          (_player.platform as dynamic).setProperty('hwdec', 'auto');
+          debugPrint("PLAYER: Hardware Decoding (hwdec) set to 'auto'");
+        } catch (e) {
+          debugPrint("PLAYER: Error setting hwdec: $e");
+        }
+      }
+    } else {
+      try {
+        (_player.platform as dynamic).setProperty('hwdec', 'no');
+        debugPrint("PLAYER: Hardware Decoding (hwdec) disabled");
+      } catch (e) {
+        debugPrint("PLAYER: Error disabling hwdec: $e");
+      }
+    }
+
     // Create a VideoController with config
     _videoController = VideoController(
       _player,

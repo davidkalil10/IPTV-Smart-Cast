@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/auth_provider.dart';
 import '../services/dns_service.dart';
 
+import '../widgets/focusable_action_wrapper.dart';
+
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -212,35 +214,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.05),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.white10),
-                  ),
-                  child: SwitchListTile(
-                    title: const Text(
-                      'Aceleração de Hardware',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
+                FocusableActionWrapper(
+                  showFocusHighlight: true,
+                  onTap: () async {
+                    setState(() => _hwDecoding = !_hwDecoding);
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setBool('enable_hw_acceleration', _hwDecoding);
+                  },
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white10),
+                    ),
+                    child: SwitchListTile(
+                      mouseCursor: SystemMouseCursors.click,
+                      title: const Text(
+                        'Aceleração de Hardware',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
+                      subtitle: const Text(
+                        'Melhora performance em dispositivos potentes. Desative se houver travamentos na TV.',
+                        style: TextStyle(color: Colors.white54, fontSize: 12),
+                      ),
+                      value: _hwDecoding,
+                      activeColor: const Color(0xFF00BFA5),
+                      secondary: const Icon(
+                        Icons.memory,
+                        color: Color(0xFF00BFA5),
+                      ),
+                      onChanged: (value) async {
+                        setState(() => _hwDecoding = value);
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setBool('enable_hw_acceleration', value);
+                      },
                     ),
-                    subtitle: const Text(
-                      'Melhora performance em dispositivos potentes. Desative se houver travamentos na TV.',
-                      style: TextStyle(color: Colors.white54, fontSize: 12),
-                    ),
-                    value: _hwDecoding,
-                    activeColor: const Color(0xFF00BFA5),
-                    secondary: const Icon(
-                      Icons.memory,
-                      color: Color(0xFF00BFA5),
-                    ),
-                    onChanged: (value) async {
-                      setState(() => _hwDecoding = value);
-                      final prefs = await SharedPreferences.getInstance();
-                      await prefs.setBool('enable_hw_acceleration', value);
-                    },
                   ),
                 ),
 

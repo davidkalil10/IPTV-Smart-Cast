@@ -23,7 +23,7 @@ class CombinedLiveView extends StatelessWidget {
   final FocusNode firstContentFocus;
   final Channel? previewChannel;
   final Player previewPlayer;
-  final VideoController previewController;
+  final VideoController? previewController;
   final Function(Channel) onPreviewSelect;
 
   const CombinedLiveView({
@@ -200,8 +200,14 @@ class CombinedLiveView extends StatelessWidget {
                                       ],
                                     ),
                                   )
+                                : previewController == null
+                                ? const Center(
+                                    child: CircularProgressIndicator(
+                                      color: Colors.blue,
+                                    ),
+                                  )
                                 : Video(
-                                    controller: previewController,
+                                    controller: previewController!,
                                     controls: NoVideoControls,
                                   ),
                           ),
