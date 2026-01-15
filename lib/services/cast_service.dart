@@ -141,15 +141,20 @@ class CastService extends ChangeNotifier {
     }
   }
 
-  Future<void> loadMedia(String url, {String? title, String? imageUrl}) async {
+  Future<void> loadMedia(
+    String url, {
+    String? title,
+    String? imageUrl,
+    double? startTime,
+  }) async {
     if (_session == null) return;
 
-    print("Starting cast media load for $url");
+    print("Starting cast media load for $url at ${startTime ?? 0}");
     try {
       final message = {
         'type': 'LOAD',
         'autoPlay': true,
-        'currentTime': 0,
+        'currentTime': startTime ?? 0,
         'media': {
           'contentId': url,
           'contentType': 'video/mp4',

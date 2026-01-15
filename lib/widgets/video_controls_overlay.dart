@@ -935,102 +935,169 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
                                   ),
                                 ),
                                 Expanded(
-                                  child: _isSeekMode
-                                      ? Focus(
-                                          onKeyEvent: (node, event) {
-                                            if (event is KeyDownEvent) {
-                                              if (event.logicalKey ==
-                                                      LogicalKeyboardKey
-                                                          .escape ||
-                                                  event.logicalKey ==
-                                                      LogicalKeyboardKey
-                                                          .goBack) {
-                                                setState(
-                                                  () => _isSeekMode = false,
-                                                );
-                                                return KeyEventResult.handled;
-                                              }
-                                              if (event.logicalKey ==
-                                                  LogicalKeyboardKey
-                                                      .arrowDown) {
-                                                if (widget.channel.type ==
-                                                        'series' ||
-                                                    widget.channel.type ==
-                                                        'series_episode') {
-                                                  _episodesFocusNode
-                                                      .requestFocus();
-                                                } else {
-                                                  _aspectRatioFocusNode
-                                                      .requestFocus();
-                                                }
-                                                return KeyEventResult.handled;
-                                              }
-                                            }
-                                            return KeyEventResult.ignored;
-                                          },
-                                          child: SliderTheme(
-                                            data: SliderTheme.of(context).copyWith(
-                                              thumbShape:
-                                                  const RoundSliderThumbShape(
-                                                    enabledThumbRadius: 8,
+                                  child: _isAndroidTV
+                                      ? (_isSeekMode
+                                            ? Focus(
+                                                onKeyEvent: (node, event) {
+                                                  if (event is KeyDownEvent) {
+                                                    if (event.logicalKey ==
+                                                            LogicalKeyboardKey
+                                                                .escape ||
+                                                        event.logicalKey ==
+                                                            LogicalKeyboardKey
+                                                                .goBack) {
+                                                      setState(
+                                                        () =>
+                                                            _isSeekMode = false,
+                                                      );
+                                                      return KeyEventResult
+                                                          .handled;
+                                                    }
+                                                    if (event.logicalKey ==
+                                                        LogicalKeyboardKey
+                                                            .arrowDown) {
+                                                      if (widget.channel.type ==
+                                                              'series' ||
+                                                          widget.channel.type ==
+                                                              'series_episode') {
+                                                        _episodesFocusNode
+                                                            .requestFocus();
+                                                      } else {
+                                                        _aspectRatioFocusNode
+                                                            .requestFocus();
+                                                      }
+                                                      return KeyEventResult
+                                                          .handled;
+                                                    }
+                                                  }
+                                                  return KeyEventResult.ignored;
+                                                },
+                                                child: SliderTheme(
+                                                  data: SliderTheme.of(context).copyWith(
+                                                    thumbShape:
+                                                        const RoundSliderThumbShape(
+                                                          enabledThumbRadius: 8,
+                                                        ),
+                                                    overlayShape:
+                                                        const RoundSliderOverlayShape(
+                                                          overlayRadius: 12,
+                                                        ),
+                                                    activeTrackColor:
+                                                        Colors.purpleAccent,
+                                                    inactiveTrackColor:
+                                                        Colors.white24,
+                                                    thumbColor:
+                                                        Colors.purpleAccent,
+                                                    overlayColor: Colors
+                                                        .purpleAccent
+                                                        .withOpacity(0.2),
                                                   ),
-                                              overlayShape:
-                                                  const RoundSliderOverlayShape(
-                                                    overlayRadius: 12,
-                                                  ),
-                                              activeTrackColor:
-                                                  Colors.purpleAccent,
-                                              inactiveTrackColor:
-                                                  Colors.white24,
-                                              thumbColor: Colors.purpleAccent,
-                                              overlayColor: Colors.purpleAccent
-                                                  .withOpacity(0.2),
-                                            ),
-                                            child: Slider(
-                                              autofocus: true,
-                                              value: _position.inSeconds
-                                                  .toDouble()
-                                                  .clamp(
-                                                    0.0,
-                                                    _duration.inSeconds
+                                                  child: Slider(
+                                                    autofocus: true,
+                                                    value: _position.inSeconds
+                                                        .toDouble()
+                                                        .clamp(
+                                                          0.0,
+                                                          _duration.inSeconds
+                                                              .toDouble(),
+                                                        ),
+                                                    min: 0,
+                                                    max: _duration.inSeconds
                                                         .toDouble(),
+                                                    onChanged: (value) {
+                                                      _resetHideTimer();
+                                                      final newPos = Duration(
+                                                        seconds: value.toInt(),
+                                                      );
+                                                      setState(
+                                                        () =>
+                                                            _position = newPos,
+                                                      );
+                                                      widget.player.seek(
+                                                        newPos,
+                                                      );
+                                                    },
                                                   ),
-                                              min: 0,
-                                              max: _duration.inSeconds
-                                                  .toDouble(),
-                                              onChanged: (value) {
-                                                _resetHideTimer();
-                                                final newPos = Duration(
-                                                  seconds: value.toInt(),
-                                                );
-                                                setState(
-                                                  () => _position = newPos,
-                                                );
-                                                widget.player.seek(newPos);
-                                              },
-                                            ),
+                                                ),
+                                              )
+                                            : FocusableActionWrapper(
+                                                showFocusHighlight:
+                                                    _isAndroidTV,
+                                                onTap: () {
+                                                  setState(
+                                                    () => _isSeekMode = true,
+                                                  );
+                                                },
+                                                child: Container(
+                                                  height:
+                                                      30, // Hit target height
+                                                  alignment: Alignment.center,
+                                                  child: LinearProgressIndicator(
+                                                    value:
+                                                        _duration.inSeconds > 0
+                                                        ? (_position.inSeconds /
+                                                                  _duration
+                                                                      .inSeconds)
+                                                              .clamp(0.0, 1.0)
+                                                        : 0.0,
+                                                    backgroundColor:
+                                                        Colors.white24,
+                                                    valueColor:
+                                                        const AlwaysStoppedAnimation(
+                                                          Colors.purpleAccent,
+                                                        ),
+                                                  ),
+                                                ),
+                                              ))
+                                      : SliderTheme(
+                                          data: SliderTheme.of(context).copyWith(
+                                            thumbShape:
+                                                const RoundSliderThumbShape(
+                                                  enabledThumbRadius: 8,
+                                                ),
+                                            overlayShape:
+                                                const RoundSliderOverlayShape(
+                                                  overlayRadius: 12,
+                                                ),
+                                            activeTrackColor:
+                                                Colors.purpleAccent,
+                                            inactiveTrackColor: Colors.white24,
+                                            thumbColor: Colors.purpleAccent,
+                                            overlayColor: Colors.purpleAccent
+                                                .withOpacity(0.2),
                                           ),
-                                        )
-                                      : FocusableActionWrapper(
-                                          showFocusHighlight: _isAndroidTV,
-                                          onTap: () {
-                                            setState(() => _isSeekMode = true);
-                                          },
-                                          child: Container(
-                                            height: 30, // Hit target height
-                                            alignment: Alignment.center,
-                                            child: LinearProgressIndicator(
-                                              value: _duration.inSeconds > 0
-                                                  ? (_position.inSeconds /
-                                                            _duration.inSeconds)
-                                                        .clamp(0.0, 1.0)
-                                                  : 0.0,
-                                              backgroundColor: Colors.white24,
-                                              valueColor:
-                                                  const AlwaysStoppedAnimation(
-                                                    Colors.purpleAccent,
+                                          child: Slider(
+                                            value: _position.inSeconds
+                                                .toDouble()
+                                                .clamp(
+                                                  0.0,
+                                                  _duration.inSeconds
+                                                      .toDouble(),
+                                                ),
+                                            min: 0,
+                                            max: _duration.inSeconds.toDouble(),
+                                            onChanged: (value) {
+                                              _resetHideTimer();
+                                              final newPos = Duration(
+                                                seconds: value.toInt(),
+                                              );
+                                              // Optimistic UI update
+                                              setState(
+                                                () => _position = newPos,
+                                              );
+                                            },
+                                            onChangeEnd: (value) {
+                                              _resetHideTimer();
+                                              if (CastService().isConnected) {
+                                                CastService().seek(value);
+                                              } else {
+                                                widget.player.seek(
+                                                  Duration(
+                                                    seconds: value.toInt(),
                                                   ),
-                                            ),
+                                                );
+                                              }
+                                            },
                                           ),
                                         ),
                                 ),
@@ -1495,6 +1562,7 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
       CastService().loadMedia(
         widget.channel.streamUrl,
         title: widget.channel.name,
+        startTime: _position.inSeconds.toDouble(),
       );
     }
   }
