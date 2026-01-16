@@ -100137,7 +100137,7 @@ o=a.h(0,"container_extension")
 if(o==null)o="mp4"
 n=J.bp(a.h(0,"id"))
 m=r+"/series/"+q+"/"+p+"/"+n+"."+A.j(o)
-if(!B.c.bt(m,"https")&&!B.c.n(m,"corsproxy"))m="https://corsproxy.io/?"+A.kE(2,m,B.a3,!1)
+if(!B.c.bt(m,"https")&&!B.c.n(m,"allorigins"))m="https://api.allorigins.win/raw?url="+A.kE(2,m,B.a3,!1)
 d=f.a.c
 l=f.w
 k=a.h(0,"episode_num")
@@ -101317,7 +101317,7 @@ if(f==="live")s=i+"/live/"+h+"/"+g+"/"+A.j(a.h(0,n))+".m3u8"
 else if(f==="movie"){r=A.j(a.h(0,n))
 q=a.h(0,"container_extension")
 s=i+"/movie/"+h+"/"+g+"/"+r+"."+A.j(q==null?"mp4":q)}else s=""
-if(!B.c.bt(s,"https")&&!B.c.n(s,"corsproxy"))s="https://corsproxy.io/?"+A.kE(2,s,B.a3,!1)
+if(!B.c.bt(s,"https")&&!B.c.n(s,"allorigins"))s="https://api.allorigins.win/raw?url="+A.kE(2,s,B.a3,!1)
 if(a.h(0,m)!=null&&J.bp(a.h(0,m)).length!==0)p=A.xt(J.bp(a.h(0,m)))
 else p=a.h(0,l)!=null&&J.bp(a.h(0,l)).length!==0?A.xt(J.bp(a.h(0,l))):null
 i=a.h(0,n)
