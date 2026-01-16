@@ -14,8 +14,9 @@ import 'package:flutter/foundation.dart'; // For kIsWeb
 
 class IptvService {
   final List<String> _proxies = [
-    'https://api.allorigins.win/raw?url=',
-    'https://corsproxy.io/?',
+    'https://api.codetabs.com/v1/proxy?quest=', // Primary: User confirmed this works for API Lists
+    'https://corsproxy.io/?', // Backup
+    'https://api.allorigins.win/raw?url=', // Fallback
   ];
 
   // Helper to wrap URLs in a proxy for Web to bypass CORS/Mixed Content
@@ -312,13 +313,11 @@ class IptvService {
     }
 
     // WEB ONLY FIX: Wrap HTTP streams in Proxy to avoid Mixed Content block on HTTPS sites
-    // Using allorigins for streams as it handles raw content headers well (CORS)
+    // Switched to corsproxy.io for streams (allorigins rejected by user, codetabs failed CORS).
     if (kIsWeb &&
         !streamUrl.startsWith('https') &&
-        !streamUrl.contains('allorigins')) {
-      streamUrl =
-          'https://api.allorigins.win/raw?url=' +
-          Uri.encodeComponent(streamUrl);
+        !streamUrl.contains('corsproxy')) {
+      streamUrl = 'https://corsproxy.io/?' + Uri.encodeComponent(streamUrl);
     }
 
     // Parse rating
