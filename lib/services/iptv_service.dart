@@ -16,8 +16,19 @@ class IptvService {
   final List<String> _proxies = [
     'https://api.allorigins.win/raw?url=',
     'https://corsproxy.io/?',
-    'https://api.codetabs.com/v1/proxy?quest=', // Backup for Web API calls
   ];
+
+  // Helper to wrap URLs in a proxy for Web to bypass CORS/Mixed Content
+  String _proxyUrl(String url) {
+    if (kIsWeb &&
+        !url.startsWith('https') &&
+        !url.contains('corsproxy') &&
+        !url.contains('allorigins')) {
+      // Use corsproxy.io by default for images/content as it's reliable for binaries
+      return 'https://corsproxy.io/?' + Uri.encodeComponent(url);
+    }
+    return url;
+  }
 
   // Centralized Request Helper
   Future<http.Response> _makeRequest(String url) async {
@@ -301,8 +312,7 @@ class IptvService {
     }
 
     // WEB ONLY FIX: Wrap HTTP streams in Proxy to avoid Mixed Content block on HTTPS sites
-    // CodeTabs failing CORS on redirects. CorsProxy.io failing 403.
-    // Trying allorigins (raw) as fallback.
+    // Using allorigins for streams as it handles raw content headers well (CORS)
     if (kIsWeb &&
         !streamUrl.startsWith('https') &&
         !streamUrl.contains('allorigins')) {
@@ -324,7 +334,9 @@ class IptvService {
       id: (item['stream_id'] ?? item['series_id']).toString(),
       name: item['name'] ?? 'Sem nome',
       streamUrl: streamUrl,
-      logoUrl: item['stream_icon'] ?? item['cover'],
+      logoUrl: kIsWeb && (item['stream_icon'] != null || item['cover'] != null)
+          ? _proxyUrl(item['stream_icon'] ?? item['cover'])
+          : item['stream_icon'] ?? item['cover'],
       category: item['category_id']?.toString() ?? '0',
       rating: rating,
       type: type, // New field
