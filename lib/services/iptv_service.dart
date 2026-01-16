@@ -297,12 +297,13 @@ class IptvService {
     }
 
     // WEB ONLY FIX: Wrap HTTP streams in Proxy to avoid Mixed Content block on HTTPS sites
-    // corsproxy.io failed (403), so we use codetabs which user confirmed works for API.
+    // CodeTabs failing CORS on redirects. CorsProxy.io failing 403.
+    // Trying allorigins (raw) as fallback.
     if (kIsWeb &&
         !streamUrl.startsWith('https') &&
-        !streamUrl.contains('codetabs')) {
+        !streamUrl.contains('allorigins')) {
       streamUrl =
-          'https://api.codetabs.com/v1/proxy?quest=' +
+          'https://api.allorigins.win/raw?url=' +
           Uri.encodeComponent(streamUrl);
     }
 
