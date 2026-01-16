@@ -97805,13 +97805,13 @@ A.aQJ.prototype={
 $1(a){return"fallback"},
 $S:94}
 A.aQn.prototype={
-$1(a){var s=new A.jO(A.b([],t.Wg),new A.rE(A.b(["https://api.allorigins.win/raw?url=","https://corsproxy.io/?"],t.s)),$.ao())
+$1(a){var s=new A.jO(A.b([],t.Wg),new A.rE(A.b(["https://api.codetabs.com/v1/proxy?quest=","https://corsproxy.io/?","https://api.allorigins.win/raw?url="],t.s)),$.ao())
 s.yy()
 return s},
 $S:607}
 A.aQo.prototype={
 $1(a){var s=t.PE,r=t.N
-r=new A.ij(A.b([],s),A.b([],s),A.b([],s),A.b([],s),A.x(r,r),A.x(r,r),A.x(r,r),A.x(r,r),A.aH(r),new A.rE(A.b(["https://api.allorigins.win/raw?url=","https://corsproxy.io/?"],t.s)),A.x(r,t.FQ),$.ao())
+r=new A.ij(A.b([],s),A.b([],s),A.b([],s),A.b([],s),A.x(r,r),A.x(r,r),A.x(r,r),A.x(r,r),A.aH(r),new A.rE(A.b(["https://api.codetabs.com/v1/proxy?quest=","https://corsproxy.io/?","https://api.allorigins.win/raw?url="],t.s)),A.x(r,t.FQ),$.ao())
 r.Bl()
 return r},
 $S:608}
@@ -98580,7 +98580,7 @@ A.va(!1,new A.ayr(),a1,a0)
 q=12
 a2={}
 a1=t.s
-l=new A.rE(A.b(["https://api.allorigins.win/raw?url=","https://corsproxy.io/?"],a1))
+l=new A.rE(A.b(["https://api.codetabs.com/v1/proxy?quest=","https://corsproxy.io/?","https://api.allorigins.win/raw?url="],a1))
 a3=n.d
 a3.toString
 a4=n.e
@@ -99525,7 +99525,7 @@ var $async$Bx=A.m(function(a,b){if(a===1)return A.n(b,r)
 for(;;)switch(s){case 0:j=q.c
 j.toString
 p=A.eY(j,!1,t.T)
-j=A.b(["https://api.allorigins.win/raw?url=","https://corsproxy.io/?"],t.s)
+j=A.b(["https://api.codetabs.com/v1/proxy?quest=","https://corsproxy.io/?","https://api.allorigins.win/raw?url="],t.s)
 o=p.d
 s=o!=null&&p.e!=null&&p.f!=null?2:4
 break
@@ -100095,7 +100095,7 @@ var $async$w4=A.m(function(a,b){if(a===1)return A.n(b,r)
 for(;;)switch(s){case 0:i=q.c
 i.toString
 p=A.eY(i,!1,t.T)
-i=A.b(["https://api.allorigins.win/raw?url=","https://corsproxy.io/?"],t.s)
+i=A.b(["https://api.codetabs.com/v1/proxy?quest=","https://corsproxy.io/?","https://api.allorigins.win/raw?url="],t.s)
 o=p.d
 s=o!=null&&p.e!=null&&p.f!=null?2:4
 break
@@ -101012,7 +101012,7 @@ m=A.Y(a1)
 A.bM("\u274c Erro na conex\xe3o direta (Web): "+A.j(m))
 p=9
 f=n.a,d=0
-case 12:if(!(d<2)){s=14
+case 12:if(!(d<3)){s=14
 break}l=f[d]
 p=16
 k=A.f8(J.aVm(l,A.lR(2,a5,B.a3,!1)))
@@ -101316,7 +101316,7 @@ if(f==="live")s=i+"/live/"+h+"/"+g+"/"+A.j(a.h(0,n))+".m3u8"
 else if(f==="movie"){r=A.j(a.h(0,n))
 q=a.h(0,"container_extension")
 s=i+"/movie/"+h+"/"+g+"/"+r+"."+A.j(q==null?"mp4":q)}else s=""
-if(!B.c.bv(s,"https")&&!B.c.n(s,"allorigins"))s="https://api.allorigins.win/raw?url="+A.lR(2,s,B.a3,!1)
+if(!B.c.bv(s,"https")&&!B.c.n(s,"corsproxy"))s="https://corsproxy.io/?"+A.lR(2,s,B.a3,!1)
 if(a.h(0,m)!=null&&J.bp(a.h(0,m)).length!==0)p=A.xt(J.bp(a.h(0,m)))
 else p=a.h(0,l)!=null&&J.bp(a.h(0,l)).length!==0?A.xt(J.bp(a.h(0,l))):null
 i=a.h(0,n)
