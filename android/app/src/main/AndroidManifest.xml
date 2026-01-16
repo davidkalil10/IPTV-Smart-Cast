@@ -7,9 +7,9 @@
     <uses-feature android:name="android.software.leanback" android:required="false" />
 
     <application
-        android:label="iptv_smart_cast"
+        android:label="IPTV Smart"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@mipmap/launcher_icon"
         android:banner="@drawable/tv_banner"
         android:usesCleartextTraffic="true"
         android:enableOnBackInvokedCallback="true">
