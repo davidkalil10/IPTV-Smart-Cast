@@ -313,11 +313,13 @@ class IptvService {
     }
 
     // WEB ONLY FIX: Wrap HTTP streams in Proxy to avoid Mixed Content block on HTTPS sites
-    // Switched to corsproxy.io for streams (allorigins rejected by user, codetabs failed CORS).
+    // Switched to allorigins (raw) because corsproxy.io returned 403 Forbidden.
     if (kIsWeb &&
         !streamUrl.startsWith('https') &&
-        !streamUrl.contains('corsproxy')) {
-      streamUrl = 'https://corsproxy.io/?' + Uri.encodeComponent(streamUrl);
+        !streamUrl.contains('allorigins')) {
+      streamUrl =
+          'https://api.allorigins.win/raw?url=' +
+          Uri.encodeComponent(streamUrl);
     }
 
     // Parse rating

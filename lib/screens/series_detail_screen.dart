@@ -176,8 +176,9 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
     String url = '$baseUrl/series/$user/$pass/$id.$ext';
 
     // WEB FIX: Proxy series episodes to avoid Mixed Content / CORS
-    if (kIsWeb && !url.startsWith('https') && !url.contains('corsproxy')) {
-      url = 'https://corsproxy.io/?' + Uri.encodeComponent(url);
+    // Switched to allorigins (raw) because corsproxy.io returned 403 Forbidden.
+    if (kIsWeb && !url.startsWith('https') && !url.contains('allorigins')) {
+      url = 'https://api.allorigins.win/raw?url=' + Uri.encodeComponent(url);
     }
 
     final episodeChannel = Channel(
