@@ -173,7 +173,12 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
 
     final id = episode['id'].toString();
 
-    final url = '$baseUrl/series/$user/$pass/$id.$ext';
+    String url = '$baseUrl/series/$user/$pass/$id.$ext';
+
+    // WEB FIX: Proxy series episodes to avoid Mixed Content / CORS
+    if (kIsWeb && !url.startsWith('https') && !url.contains('corsproxy')) {
+      url = 'https://corsproxy.io/?' + Uri.encodeComponent(url);
+    }
 
     final episodeChannel = Channel(
       id: id,
