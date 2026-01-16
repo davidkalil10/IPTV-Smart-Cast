@@ -328,8 +328,10 @@ class _ContentListScreenState extends State<ContentListScreen> {
     // Sort unmapped alphabetically just to be tidy
     unmapped.sort();
 
-    // Check if we have items to resume
-    final hasResumeItems = channels.any((c) => _resumeIds.contains(c.id));
+    // Check if we have items to resume (Enable only for VOD/Series)
+    final hasResumeItems =
+        widget.type != ContentType.live &&
+        channels.any((c) => _resumeIds.contains(c.id));
 
     return [
       'TODOS',
