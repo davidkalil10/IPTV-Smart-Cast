@@ -297,11 +297,13 @@ class IptvService {
     }
 
     // WEB ONLY FIX: Wrap HTTP streams in Proxy to avoid Mixed Content block on HTTPS sites
-    // This is strictly for Web. Native apps continue to use direct connection.
+    // corsproxy.io failed (403), so we use codetabs which user confirmed works for API.
     if (kIsWeb &&
         !streamUrl.startsWith('https') &&
-        !streamUrl.contains('corsproxy')) {
-      streamUrl = 'https://corsproxy.io/?' + Uri.encodeComponent(streamUrl);
+        !streamUrl.contains('codetabs')) {
+      streamUrl =
+          'https://api.codetabs.com/v1/proxy?quest=' +
+          Uri.encodeComponent(streamUrl);
     }
 
     // Parse rating
