@@ -176,8 +176,8 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
     String url = '$baseUrl/series/$user/$pass/$id.$ext';
 
     // WEB NOTE: HTTP streams on HTTPS sites will be blocked by Mixed Content.
-    // Public proxies (corsproxy/allorigins) fail for video streaming (Format Error / 403).
-    // The only solution is for the user to "Allow Insecure Content" in browser settings.
+    // Public proxies fail for video streaming.
+    // The only solution is to "Allow Insecure Content" in the browser or use an HTTPS provider.
     // if (kIsWeb && !url.startsWith('https')) { ... }
 
     final episodeChannel = Channel(
