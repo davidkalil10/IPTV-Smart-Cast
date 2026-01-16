@@ -101319,7 +101319,7 @@ if(h==="live")s=k+"/live/"+j+"/"+i+"/"+A.j(a.h(0,n))+".m3u8"
 else if(h==="movie"){r=A.j(a.h(0,n))
 q=a.h(0,"container_extension")
 s=k+"/movie/"+j+"/"+i+"/"+r+"."+A.j(q==null?"mp4":q)}else s=""
-if(!B.c.bA(s,"https")&&!B.c.n(s,"corsproxy"))s="https://corsproxy.io/?"+A.nL(2,s,B.a4,!1)
+if(!B.c.bA(s,"https")&&!B.c.n(s,"codetabs"))s="https://api.codetabs.com/v1/proxy?quest="+A.nL(2,s,B.a4,!1)
 if(a.h(0,m)!=null&&J.bp(a.h(0,m)).length!==0)p=A.xr(J.bp(a.h(0,m)))
 else p=a.h(0,l)!=null&&J.bp(a.h(0,l)).length!==0?A.xr(J.bp(a.h(0,l))):null
 k=a.h(0,n)
