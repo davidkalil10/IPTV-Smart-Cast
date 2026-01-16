@@ -16,6 +16,7 @@ class IptvService {
   final List<String> _proxies = [
     'https://api.allorigins.win/raw?url=',
     'https://corsproxy.io/?',
+    'https://api.codetabs.com/v1/proxy?quest=', // Backup for Web API calls
   ];
 
   // Centralized Request Helper
@@ -293,6 +294,14 @@ class IptvService {
     } else if (type == 'movie') {
       streamUrl =
           '$baseUrl/movie/$user/$pass/${item['stream_id']}.${item['container_extension'] ?? 'mp4'}';
+    }
+
+    // WEB ONLY FIX: Wrap HTTP streams in Proxy to avoid Mixed Content block on HTTPS sites
+    // This is strictly for Web. Native apps continue to use direct connection.
+    if (kIsWeb &&
+        !streamUrl.startsWith('https') &&
+        !streamUrl.contains('corsproxy')) {
+      streamUrl = 'https://corsproxy.io/?' + Uri.encodeComponent(streamUrl);
     }
 
     // Parse rating
