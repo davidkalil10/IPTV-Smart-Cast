@@ -163,8 +163,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
       });
     }
 
-    // Web Player: Logic is handled by M3u8PlayerWidget in build()
-    if (kIsWeb) return;
+    // Web Player: Logic is handled by M3u8PlayerWidget in build() ONLY for Live TV
+    // For VOD (Movies/Series), we fall through to Native Player (MediaKit) which supports Web VOD.
+    if (kIsWeb && widget.channel.type == 'live') return;
 
     // Play the media (start paused if we are going to seek)
     // Use unawaited open to avoid blocking UI
@@ -664,36 +665,53 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
     */
 
-    // 🌐 WEB PLAYER UI (M3u8PlayerWidget)
-    if (kIsWeb) {
+    // 🌐 WEB PLAYER UI (M3u8PlayerWidget) - LIVE TV ONLY
+    if (kIsWeb && widget.channel.type == 'live') {
       return Scaffold(
         backgroundColor: Colors.black,
-        body: Center(
-          child: M3u8PlayerWidget(
-            config: PlayerConfig(
-              url: widget.channel.streamUrl,
-              autoPlay: true,
-              enableProgressCallback: true,
-              progressCallbackInterval: 15,
-              onProgressUpdate: (position) {
-                log('Current position: ${position.inSeconds} seconds');
-              },
-              completedPercentage: 0.95,
-              onCompleted: () {
-                log('Video Done');
-              },
-              onFullscreenChanged: (isFullscreen) {
-                log("Fullscreen changed: $isFullscreen");
-              },
-              theme: const PlayerTheme(
-                primaryColor: Colors.purpleAccent,
-                progressColor: Colors.purple,
-                backgroundColor: Colors.black,
-                bufferColor: Colors.white24,
-                iconSize: 32.0,
+        body: Stack(
+          children: [
+            Center(
+              child: M3u8PlayerWidget(
+                config: PlayerConfig(
+                  url: widget.channel.streamUrl,
+                  autoPlay: true,
+                  enableProgressCallback: true,
+                  progressCallbackInterval: 15,
+                  onProgressUpdate: (position) {
+                    log('Current position: ${position.inSeconds} seconds');
+                  },
+                  completedPercentage: 0.95,
+                  onCompleted: () {
+                    log('Video Done');
+                  },
+                  onFullscreenChanged: (isFullscreen) {
+                    log("Fullscreen changed: $isFullscreen");
+                  },
+                  theme: const PlayerTheme(
+                    primaryColor: Colors.purpleAccent,
+                    progressColor: Colors.purple,
+                    backgroundColor: Colors.black,
+                    bufferColor: Colors.white24,
+                    iconSize: 32.0,
+                  ),
+                ),
               ),
             ),
-          ),
+            // Floating Back Button
+            Positioned(
+              top: 20,
+              left: 20,
+              child: SafeArea(
+                child: FloatingActionButton(
+                  mini: true,
+                  backgroundColor: Colors.black54,
+                  child: const Icon(Icons.arrow_back, color: Colors.white),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ),
+          ],
         ),
       );
     }

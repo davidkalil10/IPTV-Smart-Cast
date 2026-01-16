@@ -5,6 +5,8 @@ import 'package:media_kit_video/media_kit_video.dart';
 import '../models/channel.dart';
 import '../widgets/focusable_action_wrapper.dart';
 import '../models/epg_program.dart';
+import 'package:m3u8_player_plus/m3u8_player_plus.dart'; // Web Player Lib
+import 'package:flutter/foundation.dart'; // For kIsWeb
 import 'package:intl/intl.dart';
 
 // Since I cannot modify the imports easily without seeing the top of the file,
@@ -208,6 +210,21 @@ class CombinedLiveView extends StatelessWidget {
                                 ? const Center(
                                     child: CircularProgressIndicator(
                                       color: Colors.blue,
+                                    ),
+                                  )
+                                : (kIsWeb && previewChannel?.type == 'live')
+                                ? M3u8PlayerWidget(
+                                    config: PlayerConfig(
+                                      url: previewChannel!.streamUrl,
+                                      autoPlay: true,
+                                      theme: const PlayerTheme(
+                                        // Minimal Theme for Preview
+                                        primaryColor: Colors.blueAccent,
+                                        progressColor: Colors.blue,
+                                        backgroundColor: Colors.black,
+                                        bufferColor: Colors.white10,
+                                        iconSize: 24.0,
+                                      ),
                                     ),
                                   )
                                 : Video(
