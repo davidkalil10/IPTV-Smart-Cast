@@ -3,14 +3,16 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:simple_pip_mode/simple_pip.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:m3u8_player_plus/m3u8_player_plus.dart'; // Web Player Lib
+import 'dart:developer'; // For logs
 import '../models/channel.dart';
 import '../widgets/video_controls_overlay.dart';
 import '../providers/channel_provider.dart';
 import '../services/playback_service.dart';
 import '../widgets/focusable_action_wrapper.dart';
 import 'dart:async';
-import 'package:simple_pip_mode/simple_pip.dart';
 import 'package:flutter/foundation.dart'; // For kIsWeb
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/cast_service.dart';
@@ -122,7 +124,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     final prefs = await SharedPreferences.getInstance();
     final enableHw = prefs.getBool('enable_hw_acceleration') ?? true;
 
-    // Apply MPV Hardware Decoding if enabled
+    // Apply MPV Hardware Decoding
     if (enableHw) {
       if (_player.platform is GlobalKey) {
         // Unlikely, but just in case of mock
@@ -160,6 +162,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
         _isInitialized = true;
       });
     }
+
+    // Web Player: Logic is handled by M3u8PlayerWidget in build()
+    if (kIsWeb) return;
 
     // Play the media (start paused if we are going to seek)
     // Use unawaited open to avoid blocking UI
@@ -646,6 +651,54 @@ class _PlayerScreenState extends State<PlayerScreen> {
       );
     }
 
+    // 🌐 Web Player Alternative (M3u8 Player Plus)
+    // If MediaKit fails on Web (Live TV), we switch to this.
+    /*
+    if (kIsWeb) {
+       return Scaffold(
+         backgroundColor: Colors.black,
+         body: Center(
+           child: Text("Web Player Placeholder (Trying m3u8_player_plus)"),
+         ),
+       );
+    }
+    */
+
+    // 🌐 WEB PLAYER UI (M3u8PlayerWidget)
+    if (kIsWeb) {
+      return Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(
+          child: M3u8PlayerWidget(
+            config: PlayerConfig(
+              url: widget.channel.streamUrl,
+              autoPlay: true,
+              enableProgressCallback: true,
+              progressCallbackInterval: 15,
+              onProgressUpdate: (position) {
+                log('Current position: ${position.inSeconds} seconds');
+              },
+              completedPercentage: 0.95,
+              onCompleted: () {
+                log('Video Done');
+              },
+              onFullscreenChanged: (isFullscreen) {
+                log("Fullscreen changed: $isFullscreen");
+              },
+              theme: const PlayerTheme(
+                primaryColor: Colors.purpleAccent,
+                progressColor: Colors.purple,
+                backgroundColor: Colors.black,
+                bufferColor: Colors.white24,
+                iconSize: 32.0,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // NATIVE PLAYER UI
     if (!_isInitialized) {
       return const Scaffold(
         backgroundColor: Colors.black,
@@ -656,7 +709,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
 
     if (_isPip) {
-      // Minimal UI for PiP
       return Scaffold(
         backgroundColor: Colors.black,
         body: Center(
