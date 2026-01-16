@@ -683,8 +683,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
     */
 
-    // 🌐 WEB PLAYER UI (M3u8PlayerWidget) - LIVE TV ONLY
-    if (kIsWeb && widget.channel.type == 'live') {
+    // 🌐 WEB PLAYER UI (M3u8PlayerWidget) - FOR ALL WEB CONTENT (Live & VOD)
+    // MediaKit Web implementation was causing Format Errors for VOD.
+    if (kIsWeb) {
       return Scaffold(
         backgroundColor: Colors.black,
         body: Stack(

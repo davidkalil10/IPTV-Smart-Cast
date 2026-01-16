@@ -312,15 +312,10 @@ class IptvService {
           '$baseUrl/movie/$user/$pass/${item['stream_id']}.${item['container_extension'] ?? 'mp4'}';
     }
 
-    // WEB ONLY FIX: Wrap HTTP streams in Proxy to avoid Mixed Content block on HTTPS sites
-    // Switched to allorigins (raw) because corsproxy.io returned 403 Forbidden.
-    if (kIsWeb &&
-        !streamUrl.startsWith('https') &&
-        !streamUrl.contains('allorigins')) {
-      streamUrl =
-          'https://api.allorigins.win/raw?url=' +
-          Uri.encodeComponent(streamUrl);
-    }
+    // WEB NOTE: HTTP streams on HTTPS sites will be blocked by Mixed Content.
+    // Public proxies (corsproxy/allorigins) fail for video streaming (Format Error / 403).
+    // The only solution is for the user to "Allow Insecure Content" in browser settings.
+    // if (kIsWeb && !streamUrl.startsWith('https')) { ... }
 
     // Parse rating
     double? rating;

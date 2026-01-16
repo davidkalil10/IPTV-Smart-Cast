@@ -175,11 +175,10 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
 
     String url = '$baseUrl/series/$user/$pass/$id.$ext';
 
-    // WEB FIX: Proxy series episodes to avoid Mixed Content / CORS
-    // Switched to allorigins (raw) because corsproxy.io returned 403 Forbidden.
-    if (kIsWeb && !url.startsWith('https') && !url.contains('allorigins')) {
-      url = 'https://api.allorigins.win/raw?url=' + Uri.encodeComponent(url);
-    }
+    // WEB NOTE: HTTP streams on HTTPS sites will be blocked by Mixed Content.
+    // Public proxies (corsproxy/allorigins) fail for video streaming (Format Error / 403).
+    // The only solution is for the user to "Allow Insecure Content" in browser settings.
+    // if (kIsWeb && !url.startsWith('https')) { ... }
 
     final episodeChannel = Channel(
       id: id,
