@@ -172,7 +172,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _player
         .open(
           Media(widget.channel.streamUrl),
-          play: false, // Always start paused to control playback explicitly
+          // NATIVE: Auto-play immediately (!kIsWeb)
+          // WEB: Start paused, handle explicitly below
+          play:
+              !kIsWeb &&
+              widget.startPosition == null &&
+              !CastService().isConnected,
         )
         .then((_) async {
           // Explicitly play if safe, mostly for Web VOD where auto-play might be finicky
@@ -182,9 +187,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
               await _player.play();
               await Future.delayed(const Duration(seconds: 1));
               await _player.setVolume(100); // Restore Volume
-            } else {
-              _player.play();
             }
+            // On Native, we already passed play: true above, so no action needed.
           }
         })
         .catchError((e) {
