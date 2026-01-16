@@ -799,6 +799,7 @@ class _ContentListScreenState extends State<ContentListScreen> {
 
         // Pause preview if playing
         _previewPlayer.pause();
+        if (kIsWeb) setState(() => _previewChannel = null);
 
         await Navigator.push(
           context,
@@ -829,6 +830,7 @@ class _ContentListScreenState extends State<ContentListScreen> {
       } else {
         // Pause preview if playing
         _previewPlayer.pause();
+        if (kIsWeb) setState(() => _previewChannel = null);
 
         await Navigator.push(
           context,

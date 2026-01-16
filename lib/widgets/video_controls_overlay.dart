@@ -576,38 +576,56 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
             ],
           ),
         ),
-        ...items.map((item) {
-          final isSelected = selectedItem == item;
-          return FocusableActionWrapper(
-            showFocusHighlight: _isAndroidTV,
-            onTap: () => onSelect(item),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
-              child: Row(
-                children: [
-                  Icon(
-                    isSelected
-                        ? Icons.radio_button_checked
-                        : Icons.radio_button_unchecked,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 16),
-                  Text(
-                    labelBuilder(item),
-                    style: TextStyle(
-                      color: isSelected ? Colors.white : Colors.white60,
-                      fontWeight: isSelected
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
+        if (items.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 50, vertical: 8),
+            child: Text(
+              'Nenhuma opção disponível',
+              style: TextStyle(
+                color: Colors.white54,
+                fontStyle: FontStyle.italic,
               ),
             ),
-          );
-        }).toList(),
+          ),
+        if (items.isNotEmpty)
+          ...items.map((item) {
+            final isSelected = selectedItem == item;
+            return FocusableActionWrapper(
+              showFocusHighlight: _isAndroidTV,
+              onTap: () => onSelect(item),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 30,
+                  vertical: 12,
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      isSelected
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_unchecked,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Text(
+                        labelBuilder(item),
+                        style: TextStyle(
+                          color: isSelected ? Colors.white : Colors.white60,
+                          fontWeight: isSelected
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                          fontSize: 14,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
       ],
     );
   }
@@ -1329,7 +1347,6 @@ class _VideoControlsOverlayState extends State<VideoControlsOverlay> {
                                     ),
                                     const Divider(color: Colors.white24),
 
-                                    // Subtitle Tracks
                                     if (widget.player.state.tracks.subtitle.any(
                                       (t) => t.id != 'auto' && t.id != 'no',
                                     )) ...[

@@ -172,8 +172,21 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _player
         .open(
           Media(widget.channel.streamUrl),
-          play: widget.startPosition == null && !CastService().isConnected,
+          play: false, // Always start paused to control playback explicitly
         )
+        .then((_) async {
+          // Explicitly play if safe, mostly for Web VOD where auto-play might be finicky
+          if (widget.startPosition == null && !CastService().isConnected) {
+            if (kIsWeb) {
+              await _player.setVolume(0); // Start Muted to allow AutoPlay
+              await _player.play();
+              await Future.delayed(const Duration(seconds: 1));
+              await _player.setVolume(100); // Restore Volume
+            } else {
+              _player.play();
+            }
+          }
+        })
         .catchError((e) {
           debugPrint("PLAYER: Open Error: $e");
         });
