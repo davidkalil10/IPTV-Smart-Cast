@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <!--
     If you are serving your web app in a path other than the root, change the
@@ -27,12 +28,17 @@
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
+  <link rel="icon" type="image/png" href="favicon.png" />
 
   <title>iptv_smart_cast</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- Required for HLS playback on Web (Chrome/Edge/Firefox) -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
 </head>
+
 <body>
   <script src="flutter_bootstrap.js" async></script>
 </body>
+
 </html>

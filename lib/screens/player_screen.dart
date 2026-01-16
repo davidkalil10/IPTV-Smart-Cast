@@ -150,17 +150,29 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _videoController = VideoController(
       _player,
       configuration: VideoControllerConfiguration(
-        enableHardwareAcceleration: enableHw,
+        enableHardwareAcceleration: kIsWeb ? false : enableHw,
       ),
     );
 
-    // Play the media (start paused if we are going to seek)
-    await _player.open(
-      Media(widget.channel.streamUrl),
-      play: widget.startPosition == null && !CastService().isConnected,
-    );
+    // Show UI immediately (Don't wait for stream to load/buffer to prevent freeze)
+    if (mounted) {
+      setState(() {
+        _isInitialized = true;
+      });
+    }
 
-    // Listen for errors
+    // Play the media (start paused if we are going to seek)
+    // Use unawaited open to avoid blocking UI
+    _player
+        .open(
+          Media(widget.channel.streamUrl),
+          play: widget.startPosition == null && !CastService().isConnected,
+        )
+        .catchError((e) {
+          debugPrint("PLAYER: Open Error: $e");
+        });
+
+    // Listen for errors (Restored)
     _player.stream.error.listen((error) {
       debugPrint("Player Error: $error");
       if (mounted) {
@@ -171,13 +183,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       }
     });
 
-    if (mounted) {
-      setState(() {
-        _isInitialized = true;
-      });
-    }
-
-    if (widget.startPosition != null) {
+    if (widget.startPosition != null && widget.startPosition! > Duration.zero) {
       debugPrint(
         "PLAYER: Starting resume process. Target: ${widget.startPosition}",
       );

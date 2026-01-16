@@ -287,7 +287,9 @@ class IptvService {
   ) {
     String streamUrl = '';
     if (type == 'live') {
-      streamUrl = '$baseUrl/live/$user/$pass/${item['stream_id']}.ts';
+      // Browsers don't support MPEG-TS (.ts), use HLS (.m3u8) for Web
+      final extension = kIsWeb ? 'm3u8' : 'ts';
+      streamUrl = '$baseUrl/live/$user/$pass/${item['stream_id']}.$extension';
     } else if (type == 'movie') {
       streamUrl =
           '$baseUrl/movie/$user/$pass/${item['stream_id']}.${item['container_extension'] ?? 'mp4'}';
