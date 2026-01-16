@@ -11,6 +11,7 @@ import '../services/playback_service.dart';
 import '../widgets/focusable_action_wrapper.dart';
 import 'dart:async';
 import 'package:simple_pip_mode/simple_pip.dart';
+import 'package:flutter/foundation.dart'; // For kIsWeb
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/cast_service.dart';
 
@@ -86,22 +87,34 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
     // Apply Robust MPV Options for HLS & Corrections
     if (_player.platform is GlobalKey) {
-      // Mock
+      // Mock or Test Environment
     } else {
-      final platform = _player.platform as dynamic;
-      try {
-        // Critical Fix for "force-seekable" error
-        platform.setProperty('force-seekable', 'yes');
+      if (kIsWeb) {
+        // ⚠️ Web Specific Configuration
+        debugPrint('🌐 Web Player Initialized (Native MPV options skipped)');
+      } else {
+        // 📱 Native (Android/iOS/Desktop) - Use MPV internals
+        try {
+          final platform = _player.platform as dynamic;
+          // Critical Fix for "force-seekable" error
+          platform.setProperty('force-seekable', 'yes');
 
-        // Robustness / Reconnect
-        platform.setProperty('reconnect', 'yes');
-        platform.setProperty('reconnect-delay-max', '5');
-        platform.setProperty('reconnect-streamed', 'yes');
-        platform.setProperty('reconnect-on-http-error', 'yes');
-        platform.setProperty('network-timeout', '15');
-        platform.setProperty('hls-bitrate', 'max');
-      } catch (e) {
-        debugPrint('Error setting MPV properties: $e');
+          // Robustness / Reconnect
+          platform.setProperty('reconnect', 'yes');
+          platform.setProperty('reconnect-delay-max', '5');
+          platform.setProperty('reconnect-streamed', 'yes');
+          platform.setProperty('reconnect-on-http-error', 'yes');
+          platform.setProperty('network-timeout', '15');
+          platform.setProperty('hls-bitrate', 'max');
+
+          // Buffering / Cache
+          platform.setProperty('cache', 'yes');
+          platform.setProperty('cache-secs', '120');
+          platform.setProperty('demuxer-max-bytes', '100000000');
+          platform.setProperty('demuxer-readahead-secs', '120');
+        } catch (e) {
+          debugPrint('Error setting MPV properties: $e');
+        }
       }
     }
 

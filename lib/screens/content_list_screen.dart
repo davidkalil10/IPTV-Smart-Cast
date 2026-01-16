@@ -1,4 +1,5 @@
-import 'dart:io';
+// import 'dart:io'; // Removed for Web compatibility
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -109,31 +110,47 @@ class _ContentListScreenState extends State<ContentListScreen> {
     // 3. Configure HW Decoding (MPV)
     if (enableHw) {
       if (_previewPlayer.platform is! GlobalKey) {
-        try {
-          // Use 'mediacodec' explicitly for Android TV as 'auto' can be conservative
-          final codec = Platform.isAndroid ? 'mediacodec' : 'auto';
-          final platform = _previewPlayer.platform as dynamic;
+        if (kIsWeb) {
+          debugPrint("PREVIEW: Web mode, skipping native properties");
+        } else {
+          try {
+            // Use 'mediacodec' explicitly for Android TV as 'auto' can be conservative
+            final codec = defaultTargetPlatform == TargetPlatform.android
+                ? 'mediacodec'
+                : 'auto';
+            final platform = _previewPlayer.platform as dynamic;
 
-          platform.setProperty('hwdec', codec);
-          debugPrint("PREVIEW: Hardware Decoding (hwdec) set to '$codec'");
+            platform.setProperty('hwdec', codec);
+            debugPrint("PREVIEW: Hardware Decoding (hwdec) set to '$codec'");
 
-          // Robustness for Live Streams (Mini Player)
-          platform.setProperty('force-seekable', 'yes');
-          platform.setProperty('reconnect', 'yes');
-          platform.setProperty('reconnect-delay-max', '5');
-          platform.setProperty('reconnect-streamed', 'yes');
-          platform.setProperty('reconnect-on-http-error', 'yes');
-          platform.setProperty('network-timeout', '15');
-          platform.setProperty('hls-bitrate', 'max');
-        } catch (e) {
-          debugPrint("PREVIEW: Error setting properties: $e");
+            // Robustness for Live Streams (Mini Player)
+            platform.setProperty('force-seekable', 'yes');
+            platform.setProperty('reconnect', 'yes');
+            platform.setProperty('reconnect-delay-max', '5');
+            platform.setProperty('reconnect-streamed', 'yes');
+            platform.setProperty('reconnect-on-http-error', 'yes');
+            platform.setProperty('network-timeout', '15');
+            platform.setProperty('hls-bitrate', 'max');
+
+            // Buffering / Cache for Mini Player
+            platform.setProperty('cache', 'yes');
+            platform.setProperty('cache-secs', '120');
+            platform.setProperty('demuxer-max-bytes', '100000000');
+            platform.setProperty('demuxer-readahead-secs', '120');
+          } catch (e) {
+            debugPrint("PREVIEW: Error setting properties: $e");
+          }
         }
       }
     } else {
       try {
         if (_previewPlayer.platform is! GlobalKey) {
-          (_previewPlayer.platform as dynamic).setProperty('hwdec', 'no');
-          debugPrint("PREVIEW: Hardware Decoding (hwdec) disabled");
+          if (kIsWeb) {
+            // Skip
+          } else {
+            (_previewPlayer.platform as dynamic).setProperty('hwdec', 'no');
+            debugPrint("PREVIEW: Hardware Decoding (hwdec) disabled");
+          }
         }
       } catch (e) {
         debugPrint("PREVIEW: Error setting hwdec: $e");
@@ -279,7 +296,7 @@ class _ContentListScreenState extends State<ContentListScreen> {
   }
 
   Future<void> _checkDeviceType() async {
-    if (kIsWeb || !Platform.isAndroid) {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
       setState(() => _isAndroidTV = false);
       return;
     }

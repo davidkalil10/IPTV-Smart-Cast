@@ -5,22 +5,81 @@ import '../models/channel.dart';
 import '../models/epg_program.dart';
 import 'dns_service.dart';
 
-// ⚠️ FUNÇÃO PARA IGNORAR VERIFICAÇÃO DE CERTIFICADO SSL
-HttpClient _createHttpClient() {
-  final httpClient = HttpClient();
-  httpClient.badCertificateCallback =
-      (X509Certificate cert, String host, int port) {
-        print('⚠️ Certificado inválido aceito para: $host:$port');
-        return true;
-      };
-  return httpClient;
-}
+import 'package:flutter/foundation.dart'; // For kIsWeb
+
+// Helper to create a client that ignores bad certificates (Mobile/Desktop only)
+// On Web, the browser handles SSL, so we can't ignore errors programmatically in the same way.
+// Helper removed in favor of internal logic inside _makeRequest or use of conditional imports if strictly needed.
+// Leaving empty or removing.
 
 class IptvService {
   final List<String> _proxies = [
     'https://api.allorigins.win/raw?url=',
     'https://corsproxy.io/?',
   ];
+
+  // Centralized Request Helper
+  Future<http.Response> _makeRequest(String url) async {
+    try {
+      if (kIsWeb) {
+        // Web: Direct http get
+        return await http.get(Uri.parse(url));
+      } else {
+        // Native: Advanced logic with DNS & SSL Bypass
+        final cleanUrl = url;
+        final uri = Uri.parse(cleanUrl);
+
+        // DNS Resolve
+        final resolvedIp = await DnsService().resolve(uri.host);
+        String requestUrl = cleanUrl;
+        if (resolvedIp != uri.host) {
+          requestUrl = cleanUrl.replaceFirst(uri.host, resolvedIp);
+        }
+
+        // HttpClient (Native)
+        final httpClient = HttpClient();
+        httpClient.badCertificateCallback = (cert, host, port) => true;
+
+        try {
+          final request = await httpClient.getUrl(Uri.parse(requestUrl));
+          if (resolvedIp != uri.host) {
+            request.headers.set('Host', uri.host);
+          }
+          final ioResponse = await request.close();
+          final responseBody = await ioResponse.transform(utf8.decoder).join();
+          httpClient.close();
+
+          return http.Response(responseBody, ioResponse.statusCode);
+        } catch (e) {
+          httpClient.close();
+          rethrow;
+        }
+      }
+    } catch (e) {
+      print('❌ Erro na conexão direta (${kIsWeb ? "Web" : "Native"}): $e');
+      // Proxy Fallback logic
+      if (kIsWeb) {
+        try {
+          for (var proxy in _proxies) {
+            try {
+              final proxyUrl = Uri.parse(proxy + Uri.encodeComponent(url));
+              print('🔄 Tentando proxy: $proxy');
+              final response = await http.get(proxyUrl);
+              if (response.statusCode == 200) return response;
+            } catch (_) {}
+          }
+        } catch (_) {}
+      }
+      // Last attempt
+      try {
+        final proxyUrl = Uri.parse(_proxies[0] + Uri.encodeComponent(url));
+        return await http.get(proxyUrl);
+      } catch (proxyError) {
+        print('❌ Erro no proxy final: $proxyError');
+        throw Exception('Falha na conexão (Direta e Proxy)');
+      }
+    }
+  }
 
   Future<Map<String, dynamic>> loginXtream(
     String url,
@@ -31,44 +90,14 @@ class IptvService {
         ? url.substring(0, url.length - 1)
         : url;
 
-    // DNS Resolution
-    final uri = Uri.parse(cleanUrl);
-    final resolvedIp = await DnsService().resolve(uri.host);
-    final finalUrlStr = cleanUrl.replaceFirst(uri.host, resolvedIp);
     final fullUrl =
-        '$finalUrlStr/player_api.php?username=$username&password=$password';
+        '$cleanUrl/player_api.php?username=$username&password=$password';
 
-    try {
-      final httpClient = _createHttpClient();
-      final request = await httpClient.getUrl(Uri.parse(fullUrl));
-
-      // Critical: Set Host header if we replaced the IP
-      if (resolvedIp != uri.host) {
-        request.headers.set('Host', uri.host);
-      }
-
-      final response = await request.close();
-
-      if (response.statusCode == 200) {
-        final responseBody = await response.transform(utf8.decoder).join();
-        httpClient.close();
-        return json.decode(responseBody);
-      }
-      httpClient.close();
-      throw Exception('Falha na conexão com o servidor');
-    } catch (e) {
-      print('❌ Erro na conexão direta: $e');
-      try {
-        final finalUrl = Uri.parse(_proxies[0] + Uri.encodeComponent(fullUrl));
-        final response = await http.get(finalUrl);
-        if (response.statusCode == 200) {
-          return json.decode(response.body);
-        }
-      } catch (proxyError) {
-        print('❌ Erro no proxy: $proxyError');
-      }
-      rethrow;
+    final response = await _makeRequest(fullUrl);
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
     }
+    throw Exception('Falha no login: ${response.statusCode}');
   }
 
   Future<List<Map<String, dynamic>>> fetchLiveCategories(
@@ -142,29 +171,10 @@ class IptvService {
         '$url/player_api.php?username=$user&password=$password&action=get_vod_info&vod_id=$vodId';
 
     try {
-      final httpClient = _createHttpClient();
-
-      // DNS Logic
-      Uri uri = Uri.parse(apiUrl);
-      final resolvedIp = await DnsService().resolve(uri.host);
-      String requestUrl = apiUrl;
-      if (resolvedIp != uri.host) {
-        requestUrl = apiUrl.replaceFirst(uri.host, resolvedIp);
-      }
-
-      final request = await httpClient.getUrl(Uri.parse(requestUrl));
-      if (resolvedIp != uri.host) {
-        request.headers.set('Host', uri.host);
-      }
-
-      final response = await request.close();
-
+      final response = await _makeRequest(apiUrl);
       if (response.statusCode == 200) {
-        final responseBody = await response.transform(utf8.decoder).join();
-        httpClient.close();
-        return json.decode(responseBody);
+        return json.decode(response.body);
       }
-      httpClient.close();
       return {};
     } catch (e) {
       print('❌ Erro ao buscar info do VOD: $e');
@@ -183,29 +193,10 @@ class IptvService {
         '$url/player_api.php?username=$user&password=$password&action=get_series_info&series_id=$seriesId';
 
     try {
-      final httpClient = _createHttpClient();
-
-      // DNS Logic
-      Uri uri = Uri.parse(apiUrl);
-      final resolvedIp = await DnsService().resolve(uri.host);
-      String requestUrl = apiUrl;
-      if (resolvedIp != uri.host) {
-        requestUrl = apiUrl.replaceFirst(uri.host, resolvedIp);
-      }
-
-      final request = await httpClient.getUrl(Uri.parse(requestUrl));
-      if (resolvedIp != uri.host) {
-        request.headers.set('Host', uri.host);
-      }
-
-      final response = await request.close();
-
+      final response = await _makeRequest(apiUrl);
       if (response.statusCode == 200) {
-        final responseBody = await response.transform(utf8.decoder).join();
-        httpClient.close();
-        return json.decode(responseBody);
+        return json.decode(response.body);
       }
-      httpClient.close();
       return {};
     } catch (e) {
       print('❌ Erro ao buscar info da Série: $e');
@@ -225,28 +216,10 @@ class IptvService {
         '$url/player_api.php?username=$user&password=$password&action=get_short_epg&stream_id=$streamId&limit=$limit';
 
     try {
-      final httpClient = _createHttpClient();
-
-      // DNS Logic
-      Uri uri = Uri.parse(apiUrl);
-      final resolvedIp = await DnsService().resolve(uri.host);
-      String requestUrl = apiUrl;
-      if (resolvedIp != uri.host) {
-        requestUrl = apiUrl.replaceFirst(uri.host, resolvedIp);
-      }
-
-      final request = await httpClient.getUrl(Uri.parse(requestUrl));
-      if (resolvedIp != uri.host) {
-        request.headers.set('Host', uri.host);
-      }
-
-      final response = await request.close();
+      final response = await _makeRequest(apiUrl);
 
       if (response.statusCode == 200) {
-        final responseBody = await response.transform(utf8.decoder).join();
-        httpClient.close();
-
-        final data = json.decode(responseBody);
+        final data = json.decode(response.body);
 
         // EPG response format can vary.
         // Usually: { "epg_listings": [ ... ] } or simple list depending on endpoint.
@@ -261,7 +234,6 @@ class IptvService {
 
         return listings.map((e) => EpgProgram.fromJson(e)).toList();
       }
-      httpClient.close();
       return [];
     } catch (e) {
       print('❌ Erro ao buscar EPG: $e');
@@ -271,45 +243,14 @@ class IptvService {
 
   Future<List<Map<String, dynamic>>> _fetchCategories(String apiUrl) async {
     try {
-      final httpClient = _createHttpClient();
-
-      // DNS Resolution Implementation for generic calls
-      Uri uri = Uri.parse(apiUrl);
-      final resolvedIp = await DnsService().resolve(uri.host);
-      String requestUrl = apiUrl;
-
-      if (resolvedIp != uri.host) {
-        requestUrl = apiUrl.replaceFirst(uri.host, resolvedIp);
-      }
-
-      final request = await httpClient.getUrl(Uri.parse(requestUrl));
-
-      if (resolvedIp != uri.host) {
-        request.headers.set('Host', uri.host);
-      }
-
-      final response = await request.close();
-
+      final response = await _makeRequest(apiUrl);
       if (response.statusCode == 200) {
-        final responseBody = await response.transform(utf8.decoder).join();
-        httpClient.close();
-        final List<dynamic> data = json.decode(responseBody);
+        final List<dynamic> data = json.decode(response.body);
         return data.cast<Map<String, dynamic>>();
       }
-      httpClient.close();
       return [];
     } catch (e) {
       print('❌ Erro ao buscar categorias: $e');
-      try {
-        final finalUrl = Uri.parse(_proxies[0] + Uri.encodeComponent(apiUrl));
-        final response = await http.get(finalUrl);
-        if (response.statusCode == 200) {
-          final List<dynamic> data = json.decode(response.body);
-          return data.cast<Map<String, dynamic>>();
-        }
-      } catch (proxyError) {
-        print('❌ Erro no proxy (categorias): $proxyError');
-      }
       return [];
     }
   }
@@ -322,50 +263,17 @@ class IptvService {
     String type,
   ) async {
     try {
-      final httpClient = _createHttpClient();
-
-      // DNS Resolution Implementation for generic calls
-      Uri uri = Uri.parse(apiUrl);
-      final resolvedIp = await DnsService().resolve(uri.host);
-      String requestUrl = apiUrl;
-
-      if (resolvedIp != uri.host) {
-        requestUrl = apiUrl.replaceFirst(uri.host, resolvedIp);
-      }
-
-      final request = await httpClient.getUrl(Uri.parse(requestUrl));
-
-      if (resolvedIp != uri.host) {
-        request.headers.set('Host', uri.host);
-      }
-
-      final response = await request.close();
+      final response = await _makeRequest(apiUrl);
 
       if (response.statusCode == 200) {
-        final responseBody = await response.transform(utf8.decoder).join();
-        httpClient.close();
-
-        final List<dynamic> data = json.decode(responseBody);
+        final List<dynamic> data = json.decode(response.body);
         return data
             .map((item) => _mapItemToChannel(item, baseUrl, user, pass, type))
             .toList();
       }
-      httpClient.close();
       throw Exception('Falha ao carregar dados');
     } catch (e) {
       print('❌ Erro ao buscar dados: $e');
-      try {
-        final finalUrl = Uri.parse(_proxies[0] + Uri.encodeComponent(apiUrl));
-        final response = await http.get(finalUrl);
-        if (response.statusCode == 200) {
-          final List<dynamic> data = json.decode(response.body);
-          return data
-              .map((item) => _mapItemToChannel(item, baseUrl, user, pass, type))
-              .toList();
-        }
-      } catch (proxyError) {
-        print('❌ Erro no proxy: $proxyError');
-      }
       rethrow;
     }
   }
@@ -407,28 +315,13 @@ class IptvService {
 
   Future<List<Channel>> fetchChannelsFromM3u(String url) async {
     try {
-      final httpClient = _createHttpClient();
-      final request = await httpClient.getUrl(Uri.parse(url));
-      final response = await request.close();
-
+      final response = await _makeRequest(url);
       if (response.statusCode == 200) {
-        final responseBody = await response.transform(utf8.decoder).join();
-        httpClient.close();
-        return _parseM3u(responseBody);
+        return _parseM3u(response.body);
       }
-      httpClient.close();
       throw Exception('Falha ao carregar M3U');
     } catch (e) {
       print('❌ Erro ao buscar M3U: $e');
-      try {
-        final finalUrl = Uri.parse(_proxies[0] + Uri.encodeComponent(url));
-        final response = await http.get(finalUrl);
-        if (response.statusCode == 200) {
-          return _parseM3u(response.body);
-        }
-      } catch (proxyError) {
-        print('❌ Erro no proxy: $proxyError');
-      }
       rethrow;
     }
   }
