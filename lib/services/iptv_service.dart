@@ -16,6 +16,7 @@ class IptvService {
   final List<String> _proxies = [
     'https://api.allorigins.win/raw?url=',
     'https://corsproxy.io/?',
+    'https://api.codetabs.com/v1/proxy?quest=', // Good backup
   ];
 
   // Centralized Request Helper
@@ -293,6 +294,14 @@ class IptvService {
     } else if (type == 'movie') {
       streamUrl =
           '$baseUrl/movie/$user/$pass/${item['stream_id']}.${item['container_extension'] ?? 'mp4'}';
+    }
+
+    // WEB FIX: Wrap stream URL in Proxy if it's HTTP to avoid Mixed Content error on GitHub Pages (HTTPS)
+    if (kIsWeb &&
+        !streamUrl.startsWith('https') &&
+        !streamUrl.contains('corsproxy')) {
+      // Use corsproxy.io as it handles streams relatively well
+      streamUrl = 'https://corsproxy.io/?' + Uri.encodeComponent(streamUrl);
     }
 
     // Parse rating
