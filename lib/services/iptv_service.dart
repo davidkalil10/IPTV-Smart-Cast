@@ -66,7 +66,11 @@ class IptvService {
               final proxyUrl = Uri.parse(proxy + Uri.encodeComponent(url));
               print('🔄 Tentando proxy: $proxy');
               final response = await http.get(proxyUrl);
-              if (response.statusCode == 200) return response;
+              if (response.statusCode == 200) {
+                // Force UTF-8 decoding as proxies often mess up headers
+                final body = utf8.decode(response.bodyBytes);
+                return http.Response(body, 200);
+              }
             } catch (_) {}
           }
         } catch (_) {}
