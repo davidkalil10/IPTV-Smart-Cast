@@ -12,6 +12,7 @@ import '../widgets/video_controls_overlay.dart';
 import '../providers/channel_provider.dart';
 import '../services/playback_service.dart';
 import '../widgets/focusable_action_wrapper.dart';
+import '../widgets/web_video_player.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart'; // For kIsWeb
 import 'package:shared_preferences/shared_preferences.dart';
@@ -45,8 +46,8 @@ class PlayerScreen extends StatefulWidget {
 }
 
 class _PlayerScreenState extends State<PlayerScreen> {
-  late final Player _player;
-  late final VideoController _videoController;
+  Player? _player;
+  VideoController? _videoController;
   Timer? _progressTimer;
   bool _isPip = false;
   late SimplePip _pip;
@@ -67,56 +68,60 @@ class _PlayerScreenState extends State<PlayerScreen> {
       DeviceOrientation.landscapeRight,
     ]);
 
-    _initializePlayer();
-    _pip = SimplePip(
-      onPipEntered: () {
-        setState(() {
-          _isPip = true;
-        });
-      },
-      onPipExited: () {
-        setState(() {
-          _isPip = false;
-        });
-      },
-    );
-    _pip.setAutoPipMode();
+    // On Web, M3u8PlayerWidget handles everything.
+    // We ONLY initialize MediaKit on Native.
+    if (!kIsWeb) {
+      _initializePlayer();
+      _pip = SimplePip(
+        onPipEntered: () {
+          setState(() {
+            _isPip = true;
+          });
+        },
+        onPipExited: () {
+          setState(() {
+            _isPip = false;
+          });
+        },
+      );
+      _pip.setAutoPipMode();
+    } else {
+      // Mark initialized for Web immediately so UI renders
+      setState(() {
+        _isInitialized = true;
+      });
+    }
   }
 
   Future<void> _initializePlayer() async {
-    // Create a Player instance
+    // Create a Player instance (NATIVE ONLY)
     _player = Player(configuration: const PlayerConfiguration(vo: 'gpu'));
 
     // Apply Robust MPV Options for HLS & Corrections
-    if (_player.platform is GlobalKey) {
+    if (_player!.platform is GlobalKey) {
       // Mock or Test Environment
     } else {
-      if (kIsWeb) {
-        // ⚠️ Web Specific Configuration
-        debugPrint('🌐 Web Player Initialized (Native MPV options skipped)');
-      } else {
-        // 📱 Native (Android/iOS/Desktop) - Use MPV internals
-        try {
-          final platform = _player.platform as dynamic;
-          // Critical Fix for "force-seekable" error
-          platform.setProperty('force-seekable', 'yes');
+      // 📱 Native (Android/iOS/Desktop) - Use MPV internals
+      try {
+        final platform = _player!.platform as dynamic;
+        // Critical Fix for "force-seekable" error
+        platform.setProperty('force-seekable', 'yes');
 
-          // Robustness / Reconnect
-          platform.setProperty('reconnect', 'yes');
-          platform.setProperty('reconnect-delay-max', '5');
-          platform.setProperty('reconnect-streamed', 'yes');
-          platform.setProperty('reconnect-on-http-error', 'yes');
-          platform.setProperty('network-timeout', '15');
-          platform.setProperty('hls-bitrate', 'max');
+        // Robustness / Reconnect
+        platform.setProperty('reconnect', 'yes');
+        platform.setProperty('reconnect-delay-max', '5');
+        platform.setProperty('reconnect-streamed', 'yes');
+        platform.setProperty('reconnect-on-http-error', 'yes');
+        platform.setProperty('network-timeout', '15');
+        platform.setProperty('hls-bitrate', 'max');
 
-          // Buffering / Cache
-          platform.setProperty('cache', 'yes');
-          platform.setProperty('cache-secs', '120');
-          platform.setProperty('demuxer-max-bytes', '100000000');
-          platform.setProperty('demuxer-readahead-secs', '120');
-        } catch (e) {
-          debugPrint('Error setting MPV properties: $e');
-        }
+        // Buffering / Cache
+        platform.setProperty('cache', 'yes');
+        platform.setProperty('cache-secs', '120');
+        platform.setProperty('demuxer-max-bytes', '100000000');
+        platform.setProperty('demuxer-readahead-secs', '120');
+      } catch (e) {
+        debugPrint('Error setting MPV properties: $e');
       }
     }
 
@@ -125,79 +130,55 @@ class _PlayerScreenState extends State<PlayerScreen> {
     final enableHw = prefs.getBool('enable_hw_acceleration') ?? true;
 
     // Apply MPV Hardware Decoding (Native Only)
-    // Web (media_kit_video) does not support setProperty('hwdec')
-    if (!kIsWeb) {
-      if (enableHw) {
-        if (_player.platform is GlobalKey) {
-          // Unlikely, but just in case of mock
-        } else {
-          // Access underlying native player to set MPV options
-          try {
-            (_player.platform as dynamic).setProperty('hwdec', 'auto');
-            debugPrint("PLAYER: Hardware Decoding (hwdec) set to 'auto'");
-          } catch (e) {
-            debugPrint("PLAYER: Error setting hwdec: $e");
-          }
-        }
+    if (enableHw) {
+      if (_player!.platform is GlobalKey) {
+        // Unlikely, but just in case of mock
       } else {
+        // Access underlying native player to set MPV options
         try {
-          (_player.platform as dynamic).setProperty('hwdec', 'no');
-          debugPrint("PLAYER: Hardware Decoding (hwdec) disabled");
+          (_player!.platform as dynamic).setProperty('hwdec', 'auto');
+          debugPrint("PLAYER: Hardware Decoding (hwdec) set to 'auto'");
         } catch (e) {
-          debugPrint("PLAYER: Error disabling hwdec: $e");
+          debugPrint("PLAYER: Error setting hwdec: $e");
         }
+      }
+    } else {
+      try {
+        (_player!.platform as dynamic).setProperty('hwdec', 'no');
+        debugPrint("PLAYER: Hardware Decoding (hwdec) disabled");
+      } catch (e) {
+        debugPrint("PLAYER: Error disabling hwdec: $e");
       }
     }
 
     // Create a VideoController with config
     _videoController = VideoController(
-      _player,
+      _player!,
       configuration: VideoControllerConfiguration(
-        enableHardwareAcceleration: kIsWeb ? false : enableHw,
+        enableHardwareAcceleration: enableHw,
       ),
     );
 
-    // Show UI immediately (Don't wait for stream to load/buffer to prevent freeze)
+    // Show UI immediately
     if (mounted) {
       setState(() {
         _isInitialized = true;
       });
     }
 
-    // Web Player: Logic is handled by M3u8PlayerWidget in build() ONLY for Live TV
-    // For VOD (Movies/Series), we fall through to Native Player (MediaKit) which supports Web VOD.
-    if (kIsWeb && widget.channel.type == 'live') return;
-
     // Play the media (start paused if we are going to seek)
     // Use unawaited open to avoid blocking UI
-    _player
+    _player!
         .open(
           Media(widget.channel.streamUrl),
-          // NATIVE: Auto-play immediately (!kIsWeb)
-          // WEB: Start paused, handle explicitly below
-          play:
-              !kIsWeb &&
-              widget.startPosition == null &&
-              !CastService().isConnected,
+          play: widget.startPosition == null && !CastService().isConnected,
         )
-        .then((_) async {
-          // Explicitly play if safe, mostly for Web VOD where auto-play might be finicky
-          if (widget.startPosition == null && !CastService().isConnected) {
-            if (kIsWeb) {
-              await _player.setVolume(0); // Start Muted to allow AutoPlay
-              await _player.play();
-              await Future.delayed(const Duration(seconds: 1));
-              await _player.setVolume(100); // Restore Volume
-            }
-            // On Native, we already passed play: true above, so no action needed.
-          }
-        })
         .catchError((e) {
           debugPrint("PLAYER: Open Error: $e");
         });
 
-    // Listen for errors (Restored)
-    _player.stream.error.listen((error) {
+    // Listen for errors
+    _player!.stream.error.listen((error) {
       debugPrint("Player Error: $error");
       if (mounted) {
         setState(() {
@@ -213,23 +194,23 @@ class _PlayerScreenState extends State<PlayerScreen> {
       );
       try {
         // Wait for metadata/duration load
-        if (_player.state.duration == Duration.zero) {
+        if (_player!.state.duration == Duration.zero) {
           debugPrint("PLAYER: Waiting for duration...");
-          await _player.stream.duration
+          await _player!.stream.duration
               .firstWhere((d) => d != Duration.zero)
               .timeout(const Duration(seconds: 10));
-          debugPrint("PLAYER: Duration loaded: ${_player.state.duration}");
+          debugPrint("PLAYER: Duration loaded: ${_player!.state.duration}");
         }
 
         // Seek
         debugPrint("PLAYER: Seeking to: ${widget.startPosition}");
-        await _player.seek(widget.startPosition!);
+        await _player!.seek(widget.startPosition!);
         debugPrint("PLAYER: Seek done.");
 
         // If casting, load media on receiver now that we know the position, but pause local if not already
         if (CastService().isConnected) {
           print("PLAYER: Auto-Casting detected. Loading media on Cast...");
-          await _player.pause(); // Ensure local is paused
+          await _player!.pause(); // Ensure local is paused
 
           await CastService().loadMedia(
             widget.channel.streamUrl,
@@ -238,27 +219,26 @@ class _PlayerScreenState extends State<PlayerScreen> {
           );
         } else {
           // Resume local
-          await _player.play();
+          await _player!.play();
           debugPrint("PLAYER: Play called.");
 
           // Verification / Retry logic for local playback...
           // Sometimes stream starts from 0 anyway. Check after a delay.
           await Future.delayed(const Duration(seconds: 2));
           if (mounted &&
-              _player.state.position.inSeconds <
+              _player != null &&
+              _player!.state.position.inSeconds <
                   (widget.startPosition!.inSeconds - 10)) {
             debugPrint(
-              "PLAYER: Position reset detected. Reseeking to ${widget.startPosition}...",
+              "PLAYER: Resume verification failed (position too low). Force seeking again...",
             );
-            await _player.seek(widget.startPosition!);
+            await _player!.seek(widget.startPosition!);
           }
         }
       } catch (e) {
-        debugPrint("PLAYER: Seek error: $e");
-        // Fallback play if local
-        if (!CastService().isConnected) {
-          await _player.play();
-        }
+        debugPrint("PLAYER: Resume Error: $e");
+        // Fallback: just play from beginning
+        _player!.play();
       }
     } else {
       debugPrint("PLAYER: No startPosition provided. Starting normally.");
@@ -268,7 +248,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
         print(
           "PLAYER: Auto-Casting detected (Start 0). Loading media on Cast...",
         );
-        await _player.pause();
+        await _player!.pause();
         await CastService().loadMedia(
           widget.channel.streamUrl,
           title: widget.channel.name,
@@ -284,7 +264,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     if (CastService().isConnected) {
       debugPrint("PLAYER: Cast is connected. Switching to remote playback.");
       // Pause local immediately
-      _player.pause();
+      _player!.pause();
       // Load media on Cast
       CastService().loadMedia(
         widget.channel.streamUrl,
@@ -299,9 +279,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
   void _startProgressTracking() {
     // Save every 5 seconds
     _progressTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
-      if (!mounted) return;
-      final position = _player.state.position.inSeconds;
-      final duration = _player.state.duration.inSeconds;
+      if (!mounted || _player == null) return;
+      final position = _player!.state.position.inSeconds;
+      final duration = _player!.state.duration.inSeconds;
 
       // PROTECT RESUME:
       // If we intended to resume (>10s) but current position is near 0 (<5s),
@@ -338,27 +318,31 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
     _progressTimer?.cancel();
     // One last save on exit
-    final position = _player.state.position.inSeconds;
-    final duration = _player.state.duration.inSeconds;
-    // PROTECT RESUME ON EXIT:
-    // If we intended to resume (>10s) but current position is near 0 (<5s),
-    // and the user didn't manually restart, DO NOT SAVE.
-    if (widget.startPosition != null &&
-        widget.startPosition!.inSeconds > 10 &&
-        position < 5 &&
-        !_isUserRestart) {
-      debugPrint("PLAYER: Dispose Save SKIPPED to prevent reset bug.");
-    } else if (duration > 0) {
-      PlaybackService().saveProgress(
-        widget.channel.id,
-        position,
-        duration,
-        seriesId: widget.seriesId,
-      );
+    if (_player != null) {
+      final position = _player!.state.position.inSeconds;
+      final duration = _player!.state.duration.inSeconds;
+      // PROTECT RESUME ON EXIT:
+      // If we intended to resume (>10s) but current position is near 0 (<5s),
+      // and the user didn't manually restart, DO NOT SAVE.
+      if (widget.startPosition != null &&
+          widget.startPosition!.inSeconds > 10 &&
+          position < 5 &&
+          !_isUserRestart) {
+        debugPrint("PLAYER: Dispose Save SKIPPED to prevent reset bug.");
+      } else if (duration > 0) {
+        PlaybackService().saveProgress(
+          widget.channel.id,
+          position,
+          duration,
+          seriesId: widget.seriesId,
+        );
+      }
     }
 
-    _pip.setAutoPipMode(autoEnter: false);
-    _player.dispose();
+    if (!kIsWeb) {
+      _pip.setAutoPipMode(autoEnter: false);
+    }
+    _player?.dispose();
     super.dispose();
   }
 
@@ -415,9 +399,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   Future<void> _saveProgress() async {
     // Manually trigger save before popping
-    if (_player.state.duration.inSeconds > 0) {
-      final position = _player.state.position.inSeconds;
-      final duration = _player.state.duration.inSeconds;
+    if (_player != null && _player!.state.duration.inSeconds > 0) {
+      final position = _player!.state.position.inSeconds;
+      final duration = _player!.state.duration.inSeconds;
 
       // Check for reset bug condition
       if (widget.startPosition != null &&
@@ -683,55 +667,84 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
     */
 
-    // 🌐 WEB PLAYER UI (M3u8PlayerWidget) - LIVE TV ONLY
-    if (kIsWeb && widget.channel.type == 'live') {
-      return Scaffold(
-        backgroundColor: Colors.black,
-        body: Stack(
-          children: [
-            Center(
-              child: M3u8PlayerWidget(
-                config: PlayerConfig(
-                  url: widget.channel.streamUrl,
-                  autoPlay: true,
-                  enableProgressCallback: true,
-                  progressCallbackInterval: 15,
-                  onProgressUpdate: (position) {
-                    log('Current position: ${position.inSeconds} seconds');
-                  },
-                  completedPercentage: 0.95,
-                  onCompleted: () {
-                    log('Video Done');
-                  },
-                  onFullscreenChanged: (isFullscreen) {
-                    log("Fullscreen changed: $isFullscreen");
-                  },
-                  theme: const PlayerTheme(
-                    primaryColor: Colors.purpleAccent,
-                    progressColor: Colors.purple,
-                    backgroundColor: Colors.black,
-                    bufferColor: Colors.white24,
-                    iconSize: 32.0,
+    // 🌐 WEB PLAYER UI (M3u8PlayerWidget) - FOR ALL WEB CONTENT (Live & VOD)
+    // MediaKit Web implementation requires CORS (which we lack), so we use this simpler player.
+    // 🌐 WEB PLAYER UI
+    if (kIsWeb) {
+      // 1. Live TV (Use M3u8PlayerPlus - Proven to work for HLS)
+      if (widget.channel.type == 'live') {
+        return Scaffold(
+          backgroundColor: Colors.black,
+          body: Stack(
+            children: [
+              Center(
+                child: M3u8PlayerWidget(
+                  config: PlayerConfig(
+                    url: widget.channel.streamUrl,
+                    autoPlay: true,
+                    enableProgressCallback: true,
+                    progressCallbackInterval: 15,
+                    onProgressUpdate: (position) {
+                      log('Current position: ${position.inSeconds} seconds');
+                    },
+                    completedPercentage: 0.95,
+                    onCompleted: () {
+                      log('Video Done');
+                    },
+                    onFullscreenChanged: (isFullscreen) {
+                      log("Fullscreen changed: $isFullscreen");
+                    },
+                    theme: const PlayerTheme(
+                      primaryColor: Colors.purpleAccent,
+                      progressColor: Colors.purple,
+                      backgroundColor: Colors.black,
+                      bufferColor: Colors.white24,
+                      iconSize: 32.0,
+                    ),
                   ),
                 ),
               ),
-            ),
-            // Floating Back Button
-            Positioned(
-              top: 20,
-              left: 20,
-              child: SafeArea(
-                child: FloatingActionButton(
-                  mini: true,
-                  backgroundColor: Colors.black54,
-                  child: const Icon(Icons.arrow_back, color: Colors.white),
-                  onPressed: () => Navigator.pop(context),
+              // Floating Back Button
+              Positioned(
+                top: 20,
+                left: 20,
+                child: SafeArea(
+                  child: FloatingActionButton(
+                    mini: true,
+                    backgroundColor: Colors.black54,
+                    child: const Icon(Icons.arrow_back, color: Colors.white),
+                    onPressed: () => Navigator.pop(context),
+                  ),
                 ),
               ),
-            ),
-          ],
-        ),
-      );
+            ],
+          ),
+        );
+      }
+      // 2. VOD (Movies/Series) (Use Standard VideoPlayer - Proven for MP4)
+      else {
+        return Scaffold(
+          backgroundColor: Colors.black,
+          body: Stack(
+            children: [
+              WebVideoPlayer(url: widget.channel.streamUrl, autoPlay: true),
+              // Floating Back Button
+              Positioned(
+                top: 20,
+                left: 20,
+                child: SafeArea(
+                  child: FloatingActionButton(
+                    mini: true,
+                    backgroundColor: Colors.black54,
+                    child: const Icon(Icons.arrow_back, color: Colors.white),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
     }
 
     // NATIVE PLAYER UI
@@ -758,7 +771,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     MediaQuery.of(context).size.width /
                     (_overrideAspectRatio ?? 16 / 9),
                 child: Video(
-                  controller: _videoController,
+                  controller: _videoController!,
                   controls: NoVideoControls,
                   fit: _overrideFit == BoxFit.contain
                       ? BoxFit.contain
@@ -788,7 +801,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       MediaQuery.of(context).size.width /
                       (_overrideAspectRatio ?? 16 / 9),
                   child: Video(
-                    controller: _videoController,
+                    controller: _videoController!,
                     controls: NoVideoControls,
                     subtitleViewConfiguration: SubtitleViewConfiguration(
                       style: TextStyle(
@@ -812,7 +825,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
           // Controls Layer
           VideoControlsOverlay(
-            player: _player,
+            player: _player!,
             channel: widget.channel,
             onNextEpisode: _onNextEpisode,
             onShowEpisodes: _showEpisodesList,
@@ -828,7 +841,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
             onRestart: () {
               // User manually restarted. Allow saving "0" progress.
               _isUserRestart = true;
-              _player.seek(Duration.zero);
+              _player?.seek(Duration.zero);
             },
             onExit: _saveProgress,
           ),

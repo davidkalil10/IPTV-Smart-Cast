@@ -62,8 +62,8 @@ class PlaybackService {
       return;
     }
 
-    // Only save if meaningful progress (> 10 seconds)
-    if (positionSeconds < 10) return;
+    // Only save if meaningful progress (> 5 seconds)
+    if (positionSeconds < 5) return;
 
     _progressMap[contentId] = positionSeconds;
 

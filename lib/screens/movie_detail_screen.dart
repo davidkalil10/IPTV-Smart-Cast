@@ -309,7 +309,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                                           ),
                                           builder: (context, snapshot) {
                                             final progress = snapshot.data ?? 0;
-                                            final hasProgress = progress > 10;
+                                            final hasProgress = progress > 5;
 
                                             return Row(
                                               children: [

@@ -229,7 +229,13 @@ class _SeriesDetailScreenState extends State<SeriesDetailScreen> {
           startPosition: startPosition,
         ),
       ),
-    );
+    ).then((_) => _checkProgress());
+  }
+
+  void _checkProgress() {
+    // This method will be called when the player screen is popped.
+    // It should refresh the last episode watched.
+    _fetchDetails(); // Re-fetch details to update resume point
   }
 
   @override
