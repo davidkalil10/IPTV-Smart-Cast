@@ -723,11 +723,21 @@ class _PlayerScreenState extends State<PlayerScreen> {
       }
       // 2. VOD (Movies/Series) (Use Standard VideoPlayer - Proven for MP4)
       else {
+        // NOTE: Proxying video streams (AllOrigins, CORSProxy) usually fails due to limits or format.
+        // We must use the DIRECT URL.
+        // On HTTPS sites (GitHub Pages), this requires the user to "Allow Insecure Content".
         return Scaffold(
           backgroundColor: Colors.black,
           body: Stack(
             children: [
-              WebVideoPlayer(url: widget.channel.streamUrl, autoPlay: true),
+              WebVideoPlayer(
+                url: widget.channel.streamUrl,
+                autoPlay: true,
+                startPosition: widget.startPosition,
+                onProgress: (position, duration) {
+                  // TODO: Implement progress saving for web VOD
+                },
+              ),
               // Floating Back Button
               Positioned(
                 top: 20,
